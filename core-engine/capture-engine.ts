@@ -7,6 +7,7 @@ import { getDetectorBundle } from "./bundle-detector.js";
 import { waitForVisualStability, type StabilityOptions } from "./stability-watcher.js";
 import { extractLinkAnnotations } from "./link-mapper.js";
 import type { DetectedDimensions } from "./deck-dimensions.js";
+import { computeAutoTimeout, resolveTimeoutBudget } from "./timeout-budget.js";
 import { SlideDetectionError, InvalidSourceError, ConversionTimeoutError, TooManySlidesError } from "./errors.js";
 import type { LinkAnnotation, SerializableDetectionReport } from "./types.js";
 
@@ -76,21 +77,9 @@ export interface CaptureResult {
 const ENGINES = { chromium, firefox, webkit } as const;
 
 const DEFAULT_VIEWPORT = { width: 1920, height: 1080 };
-const ISOLATE_STYLE_TAG_ID = "__framewright_isolate__";
+const ISOLATE_STYLE_TAG_ID = "__pixeldeck_isolate__";
 /** Tope del deviceScaleFactor tras compensar: más allá, el costo de memoria/CPU no compensa la ganancia visual. */
 const MAX_DEVICE_SCALE_FACTOR = 4;
-
-// Presupuesto de tiempo por defecto, escalado al tamaño del deck: arranque
-// del navegador + carga + detección, más un margen por slide medido con
-// holgura sobre el rendimiento real (~2.5s/slide en un portátil, ~5s dentro
-// de un contenedor virtualizado).
-const TIMEOUT_BASE_MS = 45_000;
-const TIMEOUT_PER_SLIDE_MS = 10_000;
-const TIMEOUT_MAX_MS = 15 * 60_000;
-
-function computeAutoTimeout(slideCount: number): number {
-  return Math.min(TIMEOUT_MAX_MS, TIMEOUT_BASE_MS + slideCount * TIMEOUT_PER_SLIDE_MS);
-}
 
 /**
  * Pipeline completo de captura: sirve `sourceDir` por HTTP, detecta la
@@ -104,7 +93,11 @@ export async function captureDeck(options: CaptureOptions): Promise<CaptureResul
   const viewport = options.viewport ?? DEFAULT_VIEWPORT;
   const browserEngine = options.browserEngine ?? "chromium";
   const minConfidence = options.minConfidence ?? 0.4;
-  const timeoutMs = options.timeoutMs ?? 90_000;
+  // Sin default aquí a propósito: si queda `undefined`, el presupuesto se
+  // calcula tras la detección a partir del número real de slides (ver la
+  // reprogramación del timer más abajo). Ponerle un default fijo aquí
+  // desactivaría por completo ese auto-escalado.
+  const timeoutMs = options.timeoutMs;
   const maxSlides = options.maxSlides ?? 300;
   const autoDetectDimensions = options.autoDetectDimensions ?? true;
   const totalStart = Date.now();
@@ -152,7 +145,7 @@ export async function captureDeck(options: CaptureOptions): Promise<CaptureResul
     let detectedDimensions: DetectedDimensions | null = null;
     let effectiveViewport = viewport;
     if (autoDetectDimensions) {
-      detectedDimensions = await page.evaluate(() => window.__framewright.detectDeckDimensions());
+      detectedDimensions = await page.evaluate(() => window.__pixeldeck.detectDeckDimensions());
 
       if (detectedDimensions && (detectedDimensions.width !== viewport.width || detectedDimensions.height !== viewport.height)) {
         effectiveViewport = { width: detectedDimensions.width, height: detectedDimensions.height };
@@ -165,7 +158,7 @@ export async function captureDeck(options: CaptureOptions): Promise<CaptureResul
     }
 
     let detectionStart = Date.now();
-    let detection = await page.evaluate<SerializableDetectionReport>(() => window.__framewright.detectSlides());
+    let detection = await page.evaluate<SerializableDetectionReport>(() => window.__pixeldeck.detectSlides());
     let detectionMs = Date.now() - detectionStart;
 
     // Compensación de resolución: algunos visores encogen el artboard para
@@ -179,7 +172,7 @@ export async function captureDeck(options: CaptureOptions): Promise<CaptureResul
     let appliedScale = scale;
     if (autoDetectDimensions && detection.slides.length > 0) {
       const firstSelector = detection.slides[0].selector;
-      const effectiveScale = await page.evaluate((sel) => window.__framewright.measureEffectiveScale(sel), firstSelector);
+      const effectiveScale = await page.evaluate((sel) => window.__pixeldeck.measureEffectiveScale(sel), firstSelector);
 
       if (effectiveScale < 0.98) {
         appliedScale = Math.min(MAX_DEVICE_SCALE_FACTOR, scale / effectiveScale);
@@ -190,7 +183,7 @@ export async function captureDeck(options: CaptureOptions): Promise<CaptureResul
         await loadPage(page);
 
         detectionStart = Date.now();
-        detection = await page.evaluate<SerializableDetectionReport>(() => window.__framewright.detectSlides());
+        detection = await page.evaluate<SerializableDetectionReport>(() => window.__pixeldeck.detectSlides());
         detectionMs = Date.now() - detectionStart;
       }
     }
@@ -208,11 +201,9 @@ export async function captureDeck(options: CaptureOptions): Promise<CaptureResul
 
     // Ya sabemos cuántas slides hay: reprogramamos el presupuesto de tiempo
     // al tamaño real del deck (salvo que el caller haya fijado uno explícito).
-    if (timeoutMs === undefined) {
-      clearTimeout(timer);
-      effectiveTimeoutMs = computeAutoTimeout(detection.slides.length);
-      timer = setTimeout(killBrowser, Math.max(0, effectiveTimeoutMs - (Date.now() - totalStart)));
-    }
+    clearTimeout(timer);
+    effectiveTimeoutMs = resolveTimeoutBudget(timeoutMs, detection.slides.length);
+    timer = setTimeout(killBrowser, Math.max(0, effectiveTimeoutMs - (Date.now() - totalStart)));
 
     // Preparamos un único <style> reutilizable para el aislamiento de cada
     // slide durante su captura (ver captureSingleSlide) — se reescribe su

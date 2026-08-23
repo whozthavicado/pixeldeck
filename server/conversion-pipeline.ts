@@ -18,7 +18,7 @@ import { logger } from "./logger.js";
 // de captura calcula el presupuesto a partir del número de slides detectadas
 // (un deck de 3 y uno de 200 no pueden compartir un límite fijo). La env var
 // sigue disponible para imponer un tope duro en despliegues concretos.
-const TIMEOUT_MS = process.env.FRAMEWRIGHT_TIMEOUT_MS ? Number(process.env.FRAMEWRIGHT_TIMEOUT_MS) : undefined;
+const TIMEOUT_MS = process.env.PIXELDECK_TIMEOUT_MS ? Number(process.env.PIXELDECK_TIMEOUT_MS) : undefined;
 
 export type OutputFormat = "pdf" | "png" | "jpg";
 

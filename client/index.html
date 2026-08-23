@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Framewright — render local de presentaciones HTML</title>
+<title>PixelDeck — render local de presentaciones HTML</title>
 <meta name="description" content="Convierte presentaciones HTML/CSS a PDF, PNG o JPG rasterizando cada diapositiva en un navegador real, sin la ruta de impresión que rompe degradados, sombras y tipografías." />
 <meta name="color-scheme" content="dark" />
 <!-- Favicon: diafragma de objetivo, dibujado inline para no depender de red. -->
@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 <style>
-/* ══ Framewright — dirección visual: instrumento óptico / cuarto oscuro ══
+/* ══ PixelDeck — dirección visual: instrumento óptico / cuarto oscuro ══
    Base casi negra cálida (no el azul-pizarra por defecto), acento ámbar de
    luz de seguridad fotográfica, monoespaciada para toda lectura técnica y
    reglas capilares tipo escala de medición. La herramienta mide y revela
@@ -473,7 +473,7 @@ legend {
 <a class="skip" href="#dropzone">Saltar al cargador</a>
 <main>
   <header class="masthead">
-    <h1 class="wordmark">Frame<span>wright</span></h1>
+    <h1 class="wordmark">Pixel<span>Deck</span></h1>
     <span class="build-tag">Render local · v0.1</span>
   </header>
 
@@ -714,9 +714,9 @@ legend {
 
   function showResult(xhr, name) {
     const rows = [
-      ["Diapositivas", xhr.getResponseHeader("X-Framewright-Slide-Count") || "?"],
-      ["Detección", xhr.getResponseHeader("X-Framewright-Detection-Strategy") || "—"],
-      ["Confianza", xhr.getResponseHeader("X-Framewright-Detection-Confidence") || "—"],
+      ["Diapositivas", xhr.getResponseHeader("X-PixelDeck-Slide-Count") || "?"],
+      ["Detección", xhr.getResponseHeader("X-PixelDeck-Detection-Strategy") || "—"],
+      ["Confianza", xhr.getResponseHeader("X-PixelDeck-Detection-Confidence") || "—"],
       ["Archivo", name],
     ];
     resultMeta.innerHTML = "";

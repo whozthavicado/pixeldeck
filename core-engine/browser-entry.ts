@@ -1,7 +1,7 @@
 /**
  * Punto de entrada que se empaqueta (con esbuild, ver `bundle-detector.ts`)
  * en un único script IIFE y se inyecta en la página real vía
- * `page.addScriptTag`. Expone `window.__framewright.detectSlides()`.
+ * `page.addScriptTag`. Expone `window.__pixeldeck.detectSlides()`.
  *
  * Existe porque `detectSlides` trabaja con referencias a `Element` del DOM,
  * que no son serializables a través del puente `page.evaluate` de
@@ -32,7 +32,7 @@ function detectSlidesForBrowser(): SerializableDetectionReport {
 
 declare global {
   interface Window {
-    __framewright: {
+    __pixeldeck: {
       detectSlides: typeof detectSlidesForBrowser;
       detectDeckDimensions: typeof detectDeckDimensions;
       measureEffectiveScale: typeof measureEffectiveScale;
@@ -40,4 +40,4 @@ declare global {
   }
 }
 
-window.__framewright = { detectSlides: detectSlidesForBrowser, detectDeckDimensions, measureEffectiveScale };
+window.__pixeldeck = { detectSlides: detectSlidesForBrowser, detectDeckDimensions, measureEffectiveScale };

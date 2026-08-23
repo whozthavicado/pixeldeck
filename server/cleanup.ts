@@ -3,7 +3,7 @@ import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const TEMP_PREFIX = "framewright-";
+const TEMP_PREFIX = "pixeldeck-";
 
 /** Registro de directorios temporales vivos, para el borrado de emergencia al salir del proceso. */
 const liveTempDirs = new Set<string>();

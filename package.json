@@ -1,5 +1,5 @@
 {
-  "name": "framewright",
+  "name": "pixeldeck",
   "version": "0.1.0",
   "description": "Renderiza presentaciones HTML/CSS en un navegador real (modo screen, no print) y las ensambla en PDF/JPG/PNG pixel-perfect.",
   "private": true,

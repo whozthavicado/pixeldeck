@@ -17,7 +17,7 @@ afterEach(async () => {
 });
 
 async function capture(fixtureName: string): Promise<CaptureResult> {
-  const outputDir = await mkdtemp(join(tmpdir(), `framewright-e2e-${fixtureName}-`));
+  const outputDir = await mkdtemp(join(tmpdir(), `pixeldeck-e2e-${fixtureName}-`));
   cleanupDirs.push(outputDir);
   return captureDeck({
     sourceDir: join(FIXTURES_DIR, fixtureName),

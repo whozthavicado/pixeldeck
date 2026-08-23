@@ -10,19 +10,19 @@ import { UnsafeZipError } from "../zip-extractor.js";
 import { logger } from "../logger.js";
 import { SlideDetectionError, InvalidSourceError, ConversionTimeoutError, TooManySlidesError } from "../../core-engine/errors.js";
 
-const MAX_UPLOAD_BYTES = Number(process.env.FRAMEWRIGHT_MAX_UPLOAD_BYTES ?? 50 * 1024 * 1024); // 50MB
+const MAX_UPLOAD_BYTES = Number(process.env.PIXELDECK_MAX_UPLOAD_BYTES ?? 50 * 1024 * 1024); // 50MB
 const ALLOWED_EXTENSIONS = new Set([".html", ".htm", ".zip"]);
 // Cada conversión lanza un navegador Playwright completo — pesado en CPU/RAM.
 // Este límite es POR PROCESO/réplica; para escalar horizontalmente, sube el
 // número de réplicas del contenedor en vez de este valor (ver README §Escalado).
-const MAX_CONCURRENT_CONVERSIONS = Number(process.env.FRAMEWRIGHT_MAX_CONCURRENCY ?? 2);
+const MAX_CONCURRENT_CONVERSIONS = Number(process.env.PIXELDECK_MAX_CONCURRENCY ?? 2);
 
 const limiter = new ConcurrencyLimiter(MAX_CONCURRENT_CONVERSIONS);
 
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, tmpdir()),
-    filename: (_req, file, cb) => cb(null, `framewright-upload-${nanoid()}${extname(file.originalname)}`),
+    filename: (_req, file, cb) => cb(null, `pixeldeck-upload-${nanoid()}${extname(file.originalname)}`),
   }),
   limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
   fileFilter: (_req, file, cb) => {
@@ -77,9 +77,9 @@ convertRouter.post("/convert", upload.single("file"), async (req: Request, res: 
       })
     );
 
-    res.setHeader("X-Framewright-Slide-Count", String(outcome.slideCount));
-    res.setHeader("X-Framewright-Detection-Strategy", outcome.detectionStrategy ?? "none");
-    res.setHeader("X-Framewright-Detection-Confidence", outcome.detectionConfidence.toFixed(2));
+    res.setHeader("X-PixelDeck-Slide-Count", String(outcome.slideCount));
+    res.setHeader("X-PixelDeck-Detection-Strategy", outcome.detectionStrategy ?? "none");
+    res.setHeader("X-PixelDeck-Detection-Confidence", outcome.detectionConfidence.toFixed(2));
 
     res.download(outcome.resultFilePath, outcome.resultFileName, async (downloadError) => {
       // res.download ya envió (o intentó enviar) la respuesta — recién ahora

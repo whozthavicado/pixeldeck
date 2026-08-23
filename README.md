@@ -1,4 +1,4 @@
-# Framewright
+# PixelDeck
 
 Convierte presentaciones HTML/CSS (generadas por IA — Claude Design, ChatGPT Canvas, Gemini, v0, Reveal.js, etc.) en PDF, JPG o PNG **pixel-perfect**, sin pasar por el pipeline de impresión del navegador (`@media print`).
 
@@ -14,19 +14,19 @@ Cuando exportas un deck HTML con "Imprimir → Guardar como PDF", el navegador c
 - `height: 100vh` → se corta a la mitad entre páginas.
 - Navegación por JS (Reveal.js, toggles, `keydown`) → solo imprime la primera slide visible.
 
-## El enfoque de Framewright
+## El enfoque de PixelDeck
 
-En vez de usar el pipeline de impresión, Framewright renderiza cada slide en modo `screen` dentro de un navegador real headless, espera a que el layout se estabilice visualmente, captura cada slide como imagen de alta resolución, y ensambla esas imágenes en un PDF con el tamaño exacto de cada slide (o las entrega como JPG/PNG).
+En vez de usar el pipeline de impresión, PixelDeck renderiza cada slide en modo `screen` dentro de un navegador real headless, espera a que el layout se estabilice visualmente, captura cada slide como imagen de alta resolución, y ensambla esas imágenes en un PDF con el tamaño exacto de cada slide (o las entrega como JPG/PNG).
 
 ## Decisiones técnicas y por qué difieren de herramientas similares
 
-Framewright no es un clon de ninguna herramienta existente que resuelva este mismo problema (p. ej. "Renditions"). Se diseñó desde cero con una metodología propia:
+PixelDeck no es un clon de ninguna herramienta existente que resuelva este mismo problema (p. ej. "Renditions"). Se diseñó desde cero con una metodología propia:
 
 1. **Playwright en vez de Puppeteer** — soporta Chromium, Firefox y WebKit con la misma API. Esto es una diferencia arquitectónica real: permite renderizar el mismo deck en varios motores y comparar (útil quirks de fuentes/gradientes entre motores), algo que un pipeline atado solo a Chromium/Puppeteer no ofrece de forma nativa.
 
 2. **Detección de slides basada en scoring, no en heurísticas fijas** — en vez de una cadena de `if/else` tipo "si es Reveal.js hazlo así, si tiene `100vh` hazlo asá", cada estrategia de detección es un módulo independiente que devuelve una **confianza (0–1)** sobre si sus candidatos son "la" lista de slides. El orquestador combina resultados: si dos estrategias coinciden en el mismo set de elementos, la confianza compuesta sube. Esto hace el sistema extensible (agregar una estrategia nueva no toca las demás) y auditable (se puede loguear por qué se eligió tal estrategia).
 
-3. **Espera de estabilidad visual por diff de screenshots, no por temporizadores fijos** — en vez de `sleep(2000)` o esperar solo `fonts.ready` + fin de animaciones CSS declaradas, Framewright toma capturas sucesivas de la slide y las compara (diff de píxeles / hash perceptual) hasta que dos capturas consecutivas sean prácticamente idénticas. Esto cubre animaciones JS no declarativas, fuentes que tardan en aplicar, e imágenes remotas con carga lenta — sin arriesgar timeouts arbitrarios.
+3. **Espera de estabilidad visual por diff de screenshots, no por temporizadores fijos** — en vez de `sleep(2000)` o esperar solo `fonts.ready` + fin de animaciones CSS declaradas, PixelDeck toma capturas sucesivas de la slide y las compara (diff de píxeles / hash perceptual) hasta que dos capturas consecutivas sean prácticamente idénticas. Esto cubre animaciones JS no declarativas, fuentes que tardan en aplicar, e imágenes remotas con carga lenta — sin arriesgar timeouts arbitrarios.
 
 4. **Ensamblaje propio con `pdf-lib`** — control total del tamaño de página (igual al bounding box real de la slide, no a un tamaño de papel estándar), inserción de anotaciones de link reconstruidas comparando la posición de los `<a>` visibles contra la captura.
 
@@ -35,7 +35,7 @@ Framewright no es un clon de ninguna herramienta existente que resuelva este mis
 ## Estructura
 
 ```
-framewright/
+pixeldeck/
 ├── core-engine/         # Lógica pura, testeable sin servidor
 │   ├── slide-detector.ts     # Sistema de scoring de detección de slides
 │   ├── stability-watcher.ts  # Espera por diff de screenshots consecutivos
@@ -91,34 +91,34 @@ node dist/server/index.js
 |---|---|---|
 | `PORT` | `4000` | Puerto HTTP del servidor. |
 | `LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error`. |
-| `FRAMEWRIGHT_MAX_CONCURRENCY` | `2` | Conversiones simultáneas por proceso/réplica (cada una lanza un navegador Playwright completo). |
-| `FRAMEWRIGHT_MAX_UPLOAD_BYTES` | `52428800` (50MB) | Tamaño máximo de archivo aceptado en `/convert`. |
-| `FRAMEWRIGHT_TIMEOUT_MS` | `90000` | Presupuesto máximo por conversión antes de cancelarla. Ver nota de rendimiento en Docker abajo. |
+| `PIXELDECK_MAX_CONCURRENCY` | `2` | Conversiones simultáneas por proceso/réplica (cada una lanza un navegador Playwright completo). |
+| `PIXELDECK_MAX_UPLOAD_BYTES` | `52428800` (50MB) | Tamaño máximo de archivo aceptado en `/convert`. |
+| `PIXELDECK_TIMEOUT_MS` | `90000` | Presupuesto máximo por conversión antes de cancelarla. Ver nota de rendimiento en Docker abajo. |
 
 ## Despliegue con Docker
 
 Playwright necesita dependencias de sistema pesadas (librerías nativas para Chromium/Firefox/WebKit) que no vienen en una imagen `node:*` estándar — el `Dockerfile` parte de la imagen oficial `mcr.microsoft.com/playwright`, que ya las trae.
 
 ```bash
-docker build -f docker/Dockerfile -t framewright .
+docker build -f docker/Dockerfile -t pixeldeck .
 docker run -d -p 4000:4000 \
-  -e FRAMEWRIGHT_MAX_CONCURRENCY=2 \
-  --name framewright framewright
+  -e PIXELDECK_MAX_CONCURRENCY=2 \
+  --name pixeldeck pixeldeck
 ```
 
 El contenedor corre como el usuario sin privilegios `pwuser` que ya provee la imagen base (un navegador headless renderizando HTML no confiable no necesita root).
 
 **Importante:** el `ARG PLAYWRIGHT_VERSION` del Dockerfile debe coincidir exactamente con la versión de `playwright` instalada en `package.json` (verificar con `node -e "console.log(require('playwright/package.json').version)"`) — Playwright no garantiza compatibilidad entre una versión de librería y binarios de navegador de otra versión.
 
-**Nota de rendimiento:** verificado en la práctica (build + run real), un deck simple de 3 slides que corre en ~20s de forma nativa tardó ~70s dentro de un contenedor en Docker Desktop para macOS (la virtualización de su VM Linux añade overhead notable para trabajo intensivo en renderizado). Si vas a desplegar en Docker, considera decks reales al calibrar `FRAMEWRIGHT_TIMEOUT_MS` — el default de 90s puede quedarse corto para decks más grandes en un host con recursos limitados. Un host Linux nativo (la mayoría de los proveedores cloud) no debería sufrir este overhead de virtualización.
+**Nota de rendimiento:** verificado en la práctica (build + run real), un deck simple de 3 slides que corre en ~20s de forma nativa tardó ~70s dentro de un contenedor en Docker Desktop para macOS (la virtualización de su VM Linux añade overhead notable para trabajo intensivo en renderizado). Si vas a desplegar en Docker, considera decks reales al calibrar `PIXELDECK_TIMEOUT_MS` — el default de 90s puede quedarse corto para decks más grandes en un host con recursos limitados. Un host Linux nativo (la mayoría de los proveedores cloud) no debería sufrir este overhead de virtualización.
 
 ## Escalado de uso concurrente
 
-Cada conversión lanza un navegador Playwright completo — es la operación más cara del sistema en CPU/RAM, no la E/S. El diseño de Framewright es **deliberadamente stateless por request**:
+Cada conversión lanza un navegador Playwright completo — es la operación más cara del sistema en CPU/RAM, no la E/S. El diseño de PixelDeck es **deliberadamente stateless por request**:
 
 - Cada conversión usa su propio workspace temporal aislado (`server/cleanup.ts`) — nada se comparte entre requests.
-- `server/job-queue.ts` limita cuántas conversiones corren a la vez **dentro de un mismo proceso** (`FRAMEWRIGHT_MAX_CONCURRENCY`), encolando el resto en FIFO en memoria.
+- `server/job-queue.ts` limita cuántas conversiones corren a la vez **dentro de un mismo proceso** (`PIXELDECK_MAX_CONCURRENCY`), encolando el resto en FIFO en memoria.
 
-Como no hay estado compartido entre requests, **escalar horizontalmente es simplemente correr más réplicas del contenedor** detrás de un load balancer (Docker Swarm, Kubernetes, ECS, etc.) — la capacidad total crece linealmente: `réplicas × FRAMEWRIGHT_MAX_CONCURRENCY`. No hace falta una cola centralizada (Redis/BullMQ) para este modelo, precisamente porque cada réplica es independiente y no necesita coordinarse con las demás.
+Como no hay estado compartido entre requests, **escalar horizontalmente es simplemente correr más réplicas del contenedor** detrás de un load balancer (Docker Swarm, Kubernetes, ECS, etc.) — la capacidad total crece linealmente: `réplicas × PIXELDECK_MAX_CONCURRENCY`. No hace falta una cola centralizada (Redis/BullMQ) para este modelo, precisamente porque cada réplica es independiente y no necesita coordinarse con las demás.
 
 Si en el futuro se necesitara *ordenamiento justo global* entre TODAS las réplicas (por ejemplo, garantizar FIFO estricto entre usuarios distintos golpeando distintas réplicas, o pausar el ingreso de trabajo nuevo cuando el clúster entero está saturado), ahí sí valdría la pena introducir una cola externa compartida — pero el límite en memoria por proceso es suficiente y más simple mientras cada réplica pueda rechazar con un 429/503 cuando está llena en vez de degradar silenciosamente.
