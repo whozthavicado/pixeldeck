@@ -14,7 +14,11 @@ import { logger } from "./logger.js";
 // entorno de despliegue — en particular, dentro de un contenedor Docker
 // virtualizado (ej. Docker Desktop en macOS) un deck de 3 slides puede
 // tardar 2-3x más que corriendo nativo. Ver README §Variables de entorno.
-const TIMEOUT_MS = Number(process.env.FRAMEWRIGHT_TIMEOUT_MS ?? 90_000);
+// Sin valor por defecto a propósito: si no se fija explícitamente, el motor
+// de captura calcula el presupuesto a partir del número de slides detectadas
+// (un deck de 3 y uno de 200 no pueden compartir un límite fijo). La env var
+// sigue disponible para imponer un tope duro en despliegues concretos.
+const TIMEOUT_MS = process.env.FRAMEWRIGHT_TIMEOUT_MS ? Number(process.env.FRAMEWRIGHT_TIMEOUT_MS) : undefined;
 
 export type OutputFormat = "pdf" | "png" | "jpg";
 

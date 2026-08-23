@@ -11,6 +11,7 @@
  * cruzan el puente sin problema.
  */
 import { detectSlides } from "./slide-detector.js";
+import { detectDeckDimensions, measureEffectiveScale } from "./deck-dimensions.js";
 import type { SerializableDetectionReport } from "./types.js";
 
 function detectSlidesForBrowser(): SerializableDetectionReport {
@@ -33,8 +34,10 @@ declare global {
   interface Window {
     __framewright: {
       detectSlides: typeof detectSlidesForBrowser;
+      detectDeckDimensions: typeof detectDeckDimensions;
+      measureEffectiveScale: typeof measureEffectiveScale;
     };
   }
 }
 
-window.__framewright = { detectSlides: detectSlidesForBrowser };
+window.__framewright = { detectSlides: detectSlidesForBrowser, detectDeckDimensions, measureEffectiveScale };

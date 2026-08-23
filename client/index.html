@@ -3,391 +3,687 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Framewright</title>
+<title>Framewright — render local de presentaciones HTML</title>
+<meta name="description" content="Convierte presentaciones HTML/CSS a PDF, PNG o JPG rasterizando cada diapositiva en un navegador real, sin la ruta de impresión que rompe degradados, sombras y tipografías." />
+<meta name="color-scheme" content="dark" />
+<!-- Favicon: diafragma de objetivo, dibujado inline para no depender de red. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230b0a09'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23ff9d2e' stroke-width='2.5'/%3E%3Cpath d='M16 7v18M8.2 11.5l15.6 9M8.2 20.5l15.6-9' stroke='%230b0a09' stroke-width='2.5'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 <style>
-  :root {
-    --bg: #0f1115;
-    --panel: #171a21;
-    --panel-border: #262b36;
-    --text: #e7e9ee;
-    --text-dim: #9aa1af;
-    --accent: #5b8def;
-    --accent-dim: #2b3a55;
-    --ok: #4caf7d;
-    --err: #e2604f;
-    --radius: 10px;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    min-height: 100vh;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 32px 16px;
-  }
-  main {
-    width: 100%;
-    max-width: 560px;
-  }
-  h1 {
-    font-size: 22px;
-    font-weight: 600;
-    margin: 0 0 4px;
-  }
-  .subtitle {
-    color: var(--text-dim);
-    font-size: 14px;
-    margin: 0 0 24px;
-  }
-  .card {
-    background: var(--panel);
-    border: 1px solid var(--panel-border);
-    border-radius: var(--radius);
-    padding: 24px;
-  }
-  #dropzone {
-    border: 2px dashed var(--panel-border);
-    border-radius: var(--radius);
-    padding: 32px 16px;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
-  }
-  #dropzone.dragover {
-    border-color: var(--accent);
-    background: rgba(91, 141, 239, 0.06);
-  }
-  #dropzone .icon { font-size: 32px; margin-bottom: 8px; }
-  #dropzone .hint { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
-  #fileInput { display: none; }
-  #fileInfo {
-    display: none;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 16px;
-    padding: 10px 14px;
-    background: #10131a;
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    font-size: 13px;
-  }
-  #fileInfo .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #fileInfo button {
-    background: none;
-    border: none;
-    color: var(--text-dim);
-    cursor: pointer;
-    font-size: 16px;
-    padding: 0 4px;
-  }
-  .options {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-top: 20px;
-  }
-  fieldset {
-    border: none;
-    padding: 0;
-    margin: 0;
-  }
-  legend {
-    font-size: 12px;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-bottom: 8px;
-  }
-  .radio-row { display: flex; gap: 6px; }
-  .radio-row label {
-    flex: 1;
-    text-align: center;
-    padding: 8px 0;
-    border: 1px solid var(--panel-border);
-    border-radius: 6px;
-    font-size: 13px;
-    cursor: pointer;
-    user-select: none;
-  }
-  .radio-row input { display: none; }
-  .radio-row input:checked + span {
-    color: var(--accent);
-  }
-  .radio-row label:has(input:checked) {
-    border-color: var(--accent);
-    background: var(--accent-dim);
-  }
-  select {
-    width: 100%;
-    background: #10131a;
-    color: var(--text);
-    border: 1px solid var(--panel-border);
-    border-radius: 6px;
-    padding: 9px 8px;
-    font-size: 13px;
-  }
-  button#convertBtn {
-    width: 100%;
-    margin-top: 24px;
-    padding: 12px;
-    background: var(--accent);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: opacity 0.15s;
-  }
-  button#convertBtn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-  #progressArea {
-    display: none;
-    margin-top: 20px;
-  }
-  #progressLabel {
-    font-size: 13px;
-    color: var(--text-dim);
-    margin-bottom: 8px;
-    display: flex;
-    justify-content: space-between;
-  }
-  .bar-track {
-    height: 8px;
-    border-radius: 4px;
-    background: #10131a;
-    overflow: hidden;
-    border: 1px solid var(--panel-border);
-  }
-  .bar-fill {
-    height: 100%;
-    background: var(--accent);
-    width: 0%;
-    transition: width 0.2s ease;
-  }
-  .bar-fill.indeterminate {
-    width: 40% !important;
-    animation: slide 1.1s ease-in-out infinite;
-  }
-  @keyframes slide {
-    0% { margin-left: -40%; }
-    100% { margin-left: 100%; }
-  }
-  #cancelBtn {
-    margin-top: 10px;
-    background: none;
-    border: 1px solid var(--panel-border);
-    color: var(--text-dim);
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 12px;
-    cursor: pointer;
-  }
-  #resultArea, #errorArea {
-    display: none;
-    margin-top: 20px;
-    padding: 14px 16px;
-    border-radius: 8px;
-    font-size: 13px;
-  }
-  #resultArea {
-    background: rgba(76, 175, 125, 0.08);
-    border: 1px solid rgba(76, 175, 125, 0.35);
-  }
-  #resultArea .title { color: var(--ok); font-weight: 600; margin-bottom: 6px; }
-  #resultArea .meta { color: var(--text-dim); margin-bottom: 10px; }
-  #resultArea a.download-link {
-    display: inline-block;
-    background: var(--ok);
-    color: #0a1410;
-    text-decoration: none;
-    padding: 8px 14px;
-    border-radius: 6px;
-    font-weight: 600;
-    font-size: 13px;
-  }
-  #errorArea {
-    background: rgba(226, 96, 79, 0.08);
-    border: 1px solid rgba(226, 96, 79, 0.35);
-  }
-  #errorArea .title { color: var(--err); font-weight: 600; margin-bottom: 6px; }
-  #errorArea .detail { color: var(--text-dim); white-space: pre-wrap; font-size: 12px; line-height: 1.5; }
-  #errorArea ul { margin: 8px 0 0; padding-left: 18px; color: var(--text-dim); font-size: 12px; }
-  footer {
-    text-align: center;
-    color: var(--text-dim);
-    font-size: 11px;
-    margin-top: 20px;
-  }
+/* ══ Framewright — dirección visual: instrumento óptico / cuarto oscuro ══
+   Base casi negra cálida (no el azul-pizarra por defecto), acento ámbar de
+   luz de seguridad fotográfica, monoespaciada para toda lectura técnica y
+   reglas capilares tipo escala de medición. La herramienta mide y revela
+   píxeles: la interfaz se comporta como el instrumento que lo hace. */
+
+:root {
+  --ink-000: #0b0a09;
+  --ink-050: #121110;
+  --ink-100: #1a1817;
+  --ink-200: #232120;
+  --ink-300: #322f2d;
+  --ink-400: #4a4642;
+  --paper-400: #8a827a;
+  --paper-200: #c9c2b8;
+  --paper-000: #f2ede6;
+
+  --safelight: #ff9d2e;
+  --safelight-dim: #b36a17;
+  --fixer: #4ade80;
+  --stop: #f8674f;
+
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px; --sp-8: 64px;
+
+  --rule: 1px solid var(--ink-300);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur: 220ms;
+
+  --font-display: "Bricolage Grotesque", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--ink-000);
+  /* Halo ámbar muy tenue: la luz de seguridad del cuarto oscuro. */
+  background-image:
+    radial-gradient(120% 80% at 50% -20%, rgba(255, 157, 46, 0.07), transparent 62%),
+    radial-gradient(80% 50% at 50% 120%, rgba(255, 157, 46, 0.04), transparent 60%);
+  background-attachment: fixed;
+  color: var(--paper-000);
+  position: relative;
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--sp-7) var(--sp-4) var(--sp-6);
+}
+
+/* Grano de película fijo sobre todo el lienzo: rompe la planitud digital
+   y refuerza la metáfora fotográfica sin costar una petición de red. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.16;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+}
+
+main { width: 100%; max-width: 660px; position: relative; z-index: 1; }
+
+/* Salto al contenido — obligatorio para navegación por teclado. */
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--safelight);
+  color: var(--ink-000);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  z-index: 200;
+}
+.skip:focus { left: var(--sp-4); top: var(--sp-4); }
+
+/* ── Encabezado con marcas de registro tipo hoja de contactos ───────── */
+
+.masthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding-bottom: var(--sp-3);
+  border-bottom: var(--rule);
+  margin-bottom: var(--sp-2);
+}
+
+.wordmark {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0;
+  line-height: 1;
+}
+.wordmark span { color: var(--safelight); }
+
+.build-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--paper-400);
+  white-space: nowrap;
+}
+
+.strapline {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--paper-200);
+  margin: 0 0 var(--sp-6);
+  max-width: 54ch;
+  text-wrap: pretty; /* evita palabras huérfanas en la última línea */
+}
+.strapline b { color: var(--paper-000); font-weight: 500; }
+
+/* ── Panel principal ────────────────────────────────────────────────── */
+
+.panel {
+  background: var(--ink-050);
+  border: var(--rule);
+  padding: var(--sp-5);
+}
+
+/* Zona de carga: encuadre de visor con esquinas de recorte. */
+.intake {
+  position: relative;
+  display: block;
+  width: 100%;
+  border: 1px dashed var(--ink-400);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  padding: var(--sp-7) var(--sp-4);
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+.intake:hover { border-color: var(--paper-400); background: rgba(255, 157, 46, 0.025); }
+.intake:focus-visible { outline: 2px solid var(--safelight); outline-offset: 3px; }
+.intake.is-hot {
+  border-color: var(--safelight);
+  border-style: solid;
+  background: rgba(255, 157, 46, 0.07);
+}
+
+/* Esquinas de encuadre del visor — decorativas, las 4 para leerse como
+   marco de encuadre y no como dos marcas sueltas. */
+.corner {
+  position: absolute;
+  width: 13px; height: 13px;
+  border: 1px solid var(--ink-400);
+  transition: border-color var(--dur) var(--ease);
+  pointer-events: none;
+}
+.corner-tl { top: 8px; left: 8px; border-right: 0; border-bottom: 0; }
+.corner-tr { top: 8px; right: 8px; border-left: 0; border-bottom: 0; }
+.corner-bl { bottom: 8px; left: 8px; border-right: 0; border-top: 0; }
+.corner-br { bottom: 8px; right: 8px; border-left: 0; border-top: 0; }
+.intake.is-hot .corner { border-color: var(--safelight); }
+
+.intake-glyph { display: block; margin: 0 auto var(--sp-3); color: var(--paper-400); }
+.intake.is-hot .intake-glyph { color: var(--safelight); }
+
+.intake-lead { display: block; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.intake-lead code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--safelight);
+  background: rgba(255, 157, 46, 0.1);
+  padding: 1px 5px;
+}
+.intake-note {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--paper-400);
+  margin-top: var(--sp-2);
+}
+
+#fileInput { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* ── Ficha del archivo cargado ──────────────────────────────────────── */
+
+.loaded {
+  display: none;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
+  background: var(--ink-100);
+  border-left: 2px solid var(--safelight);
+}
+.loaded.is-shown { display: flex; }
+.loaded-name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loaded-size { font-family: var(--font-mono); font-size: 12px; color: var(--paper-400); white-space: nowrap; }
+
+.icon-btn {
+  flex-shrink: 0;
+  width: 44px; height: 44px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--paper-400);
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.icon-btn:hover { color: var(--stop); border-color: var(--ink-300); }
+.icon-btn:focus-visible { outline: 2px solid var(--safelight); outline-offset: 2px; }
+
+/* ── Controles ──────────────────────────────────────────────────────── */
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--sp-5);
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-5);
+  border-top: var(--rule);
+}
+@media (max-width: 560px) { .controls { grid-template-columns: 1fr; } }
+
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+
+legend {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--paper-400);
+  padding: 0;
+  margin-bottom: var(--sp-3);
+}
+
+.segmented { display: flex; border: var(--rule); }
+.segmented label {
+  flex: 1;
+  position: relative;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0 var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  color: var(--paper-200);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.segmented label + label { border-left: var(--rule); }
+.segmented label:hover { background: var(--ink-200); color: var(--paper-000); }
+.segmented input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.segmented label:has(input:checked) { background: var(--safelight); color: var(--ink-000); font-weight: 700; }
+.segmented label:has(input:focus-visible) { outline: 2px solid var(--safelight); outline-offset: 2px; }
+
+.stepper { display: flex; align-items: stretch; border: var(--rule); }
+.stepper button {
+  width: 44px;
+  background: transparent;
+  border: 0;
+  color: var(--paper-200);
+  font-family: var(--font-mono);
+  font-size: 17px;
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.stepper button:hover:not(:disabled) { background: var(--ink-200); color: var(--safelight); }
+.stepper button:disabled { color: var(--ink-400); cursor: not-allowed; }
+.stepper button:focus-visible { outline: 2px solid var(--safelight); outline-offset: -2px; }
+.stepper-value {
+  min-width: 68px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  border-left: var(--rule);
+  border-right: var(--rule);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.stepper-value small { display: block; font-size: 9.5px; font-weight: 400; color: var(--paper-400); letter-spacing: 0.1em; }
+
+/* ── Acción principal ───────────────────────────────────────────────── */
+
+.run {
+  width: 100%;
+  min-height: 52px;
+  margin-top: var(--sp-5);
+  background: var(--safelight);
+  color: var(--ink-000);
+  border: 0;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease), transform 120ms var(--ease);
+}
+.run:hover:not(:disabled) { background: #ffb257; }
+.run:active:not(:disabled) { transform: scale(0.985); }
+.run:disabled { background: var(--ink-200); color: var(--ink-400); cursor: not-allowed; }
+.run:focus-visible { outline: 2px solid var(--paper-000); outline-offset: 2px; }
+
+/* ── Progreso — lectura de instrumento ──────────────────────────────── */
+
+.readout { display: none; margin-top: var(--sp-5); }
+.readout.is-shown { display: block; }
+
+.readout-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--paper-200);
+  margin-bottom: var(--sp-2);
+}
+.readout-clock { color: var(--safelight); font-variant-numeric: tabular-nums; }
+
+.gauge { position: relative; height: 6px; background: var(--ink-200); overflow: hidden; }
+.gauge-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--safelight);
+  transition: width 200ms linear;
+}
+.gauge-fill.is-scanning {
+  width: 34% !important;
+  transition: none;
+  animation: scan 1.15s var(--ease) infinite;
+}
+@keyframes scan {
+  0%   { transform: translateX(-110%); }
+  100% { transform: translateX(320%); }
+}
+
+.abort {
+  margin-top: var(--sp-3);
+  min-height: 40px;
+  padding: 0 var(--sp-4);
+  background: transparent;
+  border: var(--rule);
+  color: var(--paper-400);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.abort:hover { color: var(--stop); border-color: var(--stop); }
+.abort:focus-visible { outline: 2px solid var(--safelight); outline-offset: 2px; }
+
+/* ── Resultado / error ──────────────────────────────────────────────── */
+
+.slip { display: none; margin-top: var(--sp-5); padding: var(--sp-4); border-left: 2px solid; }
+.slip.is-shown { display: block; }
+.slip-ok { background: rgba(74, 222, 128, 0.05); border-color: var(--fixer); }
+.slip-bad { background: rgba(248, 103, 79, 0.05); border-color: var(--stop); }
+
+.slip-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: var(--sp-3);
+}
+.slip-ok .slip-head { color: var(--fixer); }
+.slip-bad .slip-head { color: var(--stop); }
+
+/* Tabla de metadatos técnicos del resultado. */
+.spec { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-1) var(--sp-4); font-family: var(--font-mono); font-size: 12px; }
+.spec dt { color: var(--paper-400); letter-spacing: 0.06em; }
+.spec dd { margin: 0; color: var(--paper-000); font-variant-numeric: tabular-nums; }
+
+.retrieve {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 44px;
+  margin-top: var(--sp-4);
+  padding: 0 var(--sp-5);
+  background: var(--fixer);
+  color: var(--ink-000);
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: background-color var(--dur) var(--ease);
+}
+.retrieve:hover { background: #6ee79b; }
+.retrieve:focus-visible { outline: 2px solid var(--paper-000); outline-offset: 2px; }
+
+.fault { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; color: var(--paper-200); white-space: pre-wrap; }
+.probe-list { margin: var(--sp-3) 0 0; padding: 0; list-style: none; }
+.probe-list li {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--paper-400);
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--ink-200);
+}
+.probe-list b { color: var(--paper-200); font-weight: 500; }
+
+/* ── Pie ────────────────────────────────────────────────────────────── */
+
+.colophon {
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-3);
+  border-top: var(--rule);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--ink-400);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
 </style>
 </head>
 <body>
+<a class="skip" href="#dropzone">Saltar al cargador</a>
 <main>
-  <h1>Framewright</h1>
-  <p class="subtitle">Convierte presentaciones HTML/CSS a PDF, JPG o PNG pixel-perfect — sin el pipeline de impresión del navegador.</p>
+  <header class="masthead">
+    <h1 class="wordmark">Frame<span>wright</span></h1>
+    <span class="build-tag">Render local · v0.1</span>
+  </header>
 
-  <div class="card">
-    <div id="dropzone">
-      <div class="icon">📄</div>
-      <div>Arrastra un <strong>.html</strong> o <strong>.zip</strong> aquí, o haz clic para elegir</div>
-      <div class="hint">Máximo 50MB · el .zip puede incluir CSS/JS/imágenes/fuentes relativas</div>
-    </div>
+  <p class="strapline">
+    Rasteriza cada diapositiva en un navegador real en modo <b>screen</b> y la ensambla a
+    tamaño exacto. Sin la ruta de impresión del navegador — los degradados, sombras,
+    desenfoques y tipografías sobreviven intactos.
+  </p>
+
+  <div class="panel">
+    <button type="button" class="intake" id="dropzone" aria-describedby="intakeNote">
+      <span class="corner corner-tl" aria-hidden="true"></span>
+      <span class="corner corner-tr" aria-hidden="true"></span>
+      <span class="corner corner-bl" aria-hidden="true"></span>
+      <span class="corner corner-br" aria-hidden="true"></span>
+      <svg class="intake-glyph" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 4h5l1.6 2H20v12H4z" />
+        <circle cx="12" cy="13" r="3.4" />
+      </svg>
+      <span class="intake-lead">Suelta un <code>.html</code> o <code>.zip</code>, o pulsa para elegir</span>
+      <span class="intake-note" id="intakeNote">Máx. 50 MB · el .zip puede traer CSS, JS, imágenes y fuentes relativas</span>
+    </button>
     <input type="file" id="fileInput" accept=".html,.htm,.zip" />
 
-    <div id="fileInfo">
-      <span class="name" id="fileName"></span>
-      <button id="clearFileBtn" type="button" title="Quitar archivo">✕</button>
+    <div class="loaded" id="fileInfo">
+      <span class="loaded-name" id="fileName"></span>
+      <span class="loaded-size" id="fileSize"></span>
+      <button type="button" class="icon-btn" id="clearFileBtn" aria-label="Quitar archivo">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M18 6L6 18M6 6l12 12" />
+        </svg>
+      </button>
     </div>
 
-    <div class="options">
+    <div class="controls">
       <fieldset>
-        <legend>Formato</legend>
-        <div class="radio-row" id="formatRow">
+        <legend>Salida</legend>
+        <div class="segmented" id="formatRow">
           <label><input type="radio" name="format" value="pdf" checked /><span>PDF</span></label>
           <label><input type="radio" name="format" value="png" /><span>PNG</span></label>
           <label><input type="radio" name="format" value="jpg" /><span>JPG</span></label>
         </div>
       </fieldset>
+
       <fieldset>
-        <legend>Resolución</legend>
-        <select id="scaleSelect">
-          <option value="1">1x</option>
-          <option value="2" selected>2x (recomendado)</option>
-          <option value="3">3x</option>
-          <option value="4">4x</option>
-        </select>
+        <legend>Densidad</legend>
+        <div class="stepper">
+          <button type="button" id="scaleDown" aria-label="Reducir densidad">−</button>
+          <div class="stepper-value">
+            <span id="scaleLabel">2×</span>
+            <small>DPR</small>
+          </div>
+          <button type="button" id="scaleUp" aria-label="Aumentar densidad">+</button>
+        </div>
       </fieldset>
     </div>
 
-    <button id="convertBtn" disabled>Convertir</button>
+    <button class="run" id="convertBtn" disabled>Revelar</button>
 
-    <div id="progressArea">
-      <div id="progressLabel">
-        <span id="progressStage">Subiendo…</span>
-        <span id="progressElapsed">0.0s</span>
+    <div class="readout" id="progressArea">
+      <div class="readout-line">
+        <span id="progressStage">Transfiriendo…</span>
+        <span class="readout-clock" id="progressElapsed">0.0 s</span>
       </div>
-      <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
-      <button id="cancelBtn" type="button">Cancelar</button>
+      <div class="gauge"><div class="gauge-fill" id="barFill"></div></div>
+      <button type="button" class="abort" id="cancelBtn">Abortar</button>
     </div>
 
-    <div id="resultArea">
-      <div class="title">Conversión completa</div>
-      <div class="meta" id="resultMeta"></div>
-      <a class="download-link" id="downloadLink" download>Descargar de nuevo</a>
+    <div class="slip slip-ok" id="resultArea">
+      <div class="slip-head">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 6L9 17l-5-5" />
+        </svg>
+        Revelado completo
+      </div>
+      <dl class="spec" id="resultMeta"></dl>
+      <a class="retrieve" id="downloadLink" download>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5M4 20h16" />
+        </svg>
+        Descargar
+      </a>
     </div>
 
-    <div id="errorArea">
-      <div class="title" id="errorTitle">Error</div>
-      <div class="detail" id="errorDetail"></div>
-      <ul id="errorStrategies"></ul>
+    <div class="slip slip-bad" id="errorArea">
+      <div class="slip-head">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <path d="M12 8v5M12 16.5v.01M10.3 3.9L2.4 17.4A1.9 1.9 0 004 20.3h16a1.9 1.9 0 001.6-2.9L13.7 3.9a1.9 1.9 0 00-3.4 0z" />
+        </svg>
+        <span id="errorTitle">Fallo</span>
+      </div>
+      <div class="fault" id="errorDetail"></div>
+      <ul class="probe-list" id="errorStrategies"></ul>
     </div>
   </div>
 
-  <footer>Renderizado con un navegador real (Playwright) — no con el pipeline de impresión del navegador.</footer>
+  <footer class="colophon">
+    <span>Motor: Chromium headless vía Playwright</span>
+    <span>Procesamiento local · nada sale de esta máquina</span>
+  </footer>
 </main>
 
 <script>
 (() => {
-  const dropzone = document.getElementById("dropzone");
-  const fileInput = document.getElementById("fileInput");
-  const fileInfo = document.getElementById("fileInfo");
-  const fileName = document.getElementById("fileName");
-  const clearFileBtn = document.getElementById("clearFileBtn");
-  const convertBtn = document.getElementById("convertBtn");
-  const progressArea = document.getElementById("progressArea");
-  const progressStage = document.getElementById("progressStage");
-  const progressElapsed = document.getElementById("progressElapsed");
-  const barFill = document.getElementById("barFill");
-  const cancelBtn = document.getElementById("cancelBtn");
-  const resultArea = document.getElementById("resultArea");
-  const resultMeta = document.getElementById("resultMeta");
-  const downloadLink = document.getElementById("downloadLink");
-  const errorArea = document.getElementById("errorArea");
-  const errorTitle = document.getElementById("errorTitle");
-  const errorDetail = document.getElementById("errorDetail");
-  const errorStrategies = document.getElementById("errorStrategies");
+  "use strict";
 
+  const $ = (id) => document.getElementById(id);
+
+  const dropzone = $("dropzone");
+  const fileInput = $("fileInput");
+  const fileInfo = $("fileInfo");
+  const fileNameEl = $("fileName");
+  const fileSizeEl = $("fileSize");
+  const clearFileBtn = $("clearFileBtn");
+  const convertBtn = $("convertBtn");
+  const progressArea = $("progressArea");
+  const progressStage = $("progressStage");
+  const progressElapsed = $("progressElapsed");
+  const barFill = $("barFill");
+  const cancelBtn = $("cancelBtn");
+  const resultArea = $("resultArea");
+  const resultMeta = $("resultMeta");
+  const downloadLink = $("downloadLink");
+  const errorArea = $("errorArea");
+  const errorTitle = $("errorTitle");
+  const errorDetail = $("errorDetail");
+  const errorStrategies = $("errorStrategies");
+  const scaleLabel = $("scaleLabel");
+  const scaleDown = $("scaleDown");
+  const scaleUp = $("scaleUp");
+
+  const SCALES = [1, 2, 3, 4];
+  let scaleIndex = 1;
   let selectedFile = null;
   let activeXhr = null;
   let elapsedTimer = null;
   let elapsedStart = 0;
   let lastObjectUrl = null;
 
+  // ── Densidad ──────────────────────────────────────────────────────
+  function renderScale() {
+    scaleLabel.textContent = `${SCALES[scaleIndex]}×`;
+    scaleDown.disabled = scaleIndex === 0;
+    scaleUp.disabled = scaleIndex === SCALES.length - 1;
+  }
+  scaleDown.addEventListener("click", () => { if (scaleIndex > 0) { scaleIndex--; renderScale(); } });
+  scaleUp.addEventListener("click", () => { if (scaleIndex < SCALES.length - 1) { scaleIndex++; renderScale(); } });
+  renderScale();
+
+  // ── Archivo ───────────────────────────────────────────────────────
   function humanSize(bytes) {
     if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1048576).toFixed(1)} MB`;
   }
 
   function setFile(file) {
     selectedFile = file;
     if (!file) {
-      fileInfo.style.display = "none";
+      fileInfo.classList.remove("is-shown");
       convertBtn.disabled = true;
       return;
     }
-    fileName.textContent = `${file.name} · ${humanSize(file.size)}`;
-    fileInfo.style.display = "flex";
+    fileNameEl.textContent = file.name;
+    fileSizeEl.textContent = humanSize(file.size);
+    fileInfo.classList.add("is-shown");
     convertBtn.disabled = false;
-    hideResultAndError();
+    hideSlips();
   }
 
   dropzone.addEventListener("click", () => fileInput.click());
-  dropzone.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    dropzone.classList.add("dragover");
-  });
-  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+  dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("is-hot"); });
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("is-hot"));
   dropzone.addEventListener("drop", (e) => {
     e.preventDefault();
-    dropzone.classList.remove("dragover");
-    const file = e.dataTransfer.files[0];
-    if (file) setFile(file);
+    dropzone.classList.remove("is-hot");
+    if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
   });
-  fileInput.addEventListener("change", () => {
-    if (fileInput.files[0]) setFile(fileInput.files[0]);
-  });
+  fileInput.addEventListener("change", () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
   clearFileBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     fileInput.value = "";
     setFile(null);
   });
 
-  function hideResultAndError() {
-    resultArea.style.display = "none";
-    errorArea.style.display = "none";
+  // ── Estados ───────────────────────────────────────────────────────
+  function hideSlips() {
+    resultArea.classList.remove("is-shown");
+    errorArea.classList.remove("is-shown");
   }
 
-  function startElapsedTimer() {
+  function startClock() {
     elapsedStart = performance.now();
     elapsedTimer = setInterval(() => {
-      const secs = (performance.now() - elapsedStart) / 1000;
-      progressElapsed.textContent = `${secs.toFixed(1)}s`;
+      progressElapsed.textContent = `${((performance.now() - elapsedStart) / 1000).toFixed(1)} s`;
     }, 100);
   }
-  function stopElapsedTimer() {
+  function stopClock() {
     if (elapsedTimer) clearInterval(elapsedTimer);
     elapsedTimer = null;
   }
 
-  function readErrorBlobAsJson(blob) {
+  function readErrorBlob(blob) {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = () => {
-        try {
-          resolve(JSON.parse(reader.result));
-        } catch {
-          resolve({ error: String(reader.result).slice(0, 500) || "Error desconocido del servidor." });
-        }
+        try { resolve(JSON.parse(reader.result)); }
+        catch { resolve({ error: String(reader.result).slice(0, 500) || "Error desconocido del servidor." }); }
       };
-      reader.onerror = () => resolve({ error: "No se pudo leer la respuesta de error del servidor." });
+      reader.onerror = () => resolve({ error: "No se pudo leer la respuesta del servidor." });
       reader.readAsText(blob);
     });
   }
@@ -396,43 +692,62 @@
     errorTitle.textContent = title;
     errorStrategies.innerHTML = "";
 
-    const hasStrategyList = body.detectionReport && Array.isArray(body.detectionReport.allResults);
-    // El mensaje del servidor ya incluye el detalle por estrategia como texto
-    // plano ("...\nDetalle por estrategia:\n  - ..."). Cuando también vamos a
-    // renderizar esa misma info como lista con viñetas, mostramos solo la
-    // primera línea del mensaje para no duplicar el detalle dos veces.
-    const fullMessage = body.error || "Error desconocido.";
-    errorDetail.textContent = hasStrategyList ? fullMessage.split("\n")[0] : fullMessage;
+    const hasProbes = body.detectionReport && Array.isArray(body.detectionReport.allResults);
+    // El mensaje del servidor ya trae el detalle por estrategia en texto
+    // plano; si además lo listamos abajo, mostramos solo la primera línea
+    // para no repetir la misma información dos veces.
+    const full = body.error || "Error desconocido.";
+    errorDetail.textContent = hasProbes ? full.split("\n")[0] : full;
 
-    if (hasStrategyList) {
+    if (hasProbes) {
       for (const r of body.detectionReport.allResults) {
         const li = document.createElement("li");
-        li.textContent = `${r.strategyName}: confianza ${r.confidence.toFixed(2)} — ${r.reason}`;
+        const name = document.createElement("b");
+        name.textContent = `${r.strategyName} · ${r.confidence.toFixed(2)}`;
+        li.appendChild(name);
+        li.appendChild(document.createTextNode(` — ${r.reason}`));
         errorStrategies.appendChild(li);
       }
     }
-    errorArea.style.display = "block";
+    errorArea.classList.add("is-shown");
   }
 
-  function resetUiAfterRequest() {
-    stopElapsedTimer();
-    progressArea.style.display = "none";
+  function showResult(xhr, name) {
+    const rows = [
+      ["Diapositivas", xhr.getResponseHeader("X-Framewright-Slide-Count") || "?"],
+      ["Detección", xhr.getResponseHeader("X-Framewright-Detection-Strategy") || "—"],
+      ["Confianza", xhr.getResponseHeader("X-Framewright-Detection-Confidence") || "—"],
+      ["Archivo", name],
+    ];
+    resultMeta.innerHTML = "";
+    for (const [key, value] of rows) {
+      const dt = document.createElement("dt");
+      dt.textContent = key;
+      const dd = document.createElement("dd");
+      dd.textContent = value;
+      resultMeta.append(dt, dd);
+    }
+    resultArea.classList.add("is-shown");
+  }
+
+  function resetRunUi() {
+    stopClock();
+    progressArea.classList.remove("is-shown");
+    barFill.classList.remove("is-scanning");
     convertBtn.disabled = !selectedFile;
-    convertBtn.textContent = "Convertir";
-    barFill.classList.remove("indeterminate");
+    convertBtn.textContent = "Revelar";
     activeXhr = null;
   }
 
-  cancelBtn.addEventListener("click", () => {
-    if (activeXhr) activeXhr.abort();
-  });
+  cancelBtn.addEventListener("click", () => { if (activeXhr) activeXhr.abort(); });
 
+  // ── Conversión ────────────────────────────────────────────────────
   convertBtn.addEventListener("click", () => {
     if (!selectedFile) return;
-    hideResultAndError();
+    hideSlips();
 
     const format = document.querySelector('input[name="format"]:checked').value;
-    const scale = document.getElementById("scaleSelect").value;
+    const scale = String(SCALES[scaleIndex]);
 
     const formData = new FormData();
     formData.append("file", selectedFile);
@@ -445,63 +760,58 @@
     xhr.responseType = "blob";
 
     convertBtn.disabled = true;
-    convertBtn.textContent = "Convirtiendo…";
-    progressArea.style.display = "block";
-    progressStage.textContent = "Subiendo archivo…";
+    convertBtn.textContent = "Revelando…";
+    progressArea.classList.add("is-shown");
+    progressStage.textContent = "Transfiriendo…";
     barFill.style.width = "0%";
-    barFill.classList.remove("indeterminate");
-    startElapsedTimer();
+    barFill.classList.remove("is-scanning");
+    startClock();
 
     xhr.upload.addEventListener("progress", (e) => {
       if (!e.lengthComputable) return;
       const pct = (e.loaded / e.total) * 100;
       barFill.style.width = `${pct}%`;
       if (pct >= 100) {
-        progressStage.textContent = "Renderizando en el servidor…";
-        barFill.classList.add("indeterminate");
+        // La fase de render no reporta avance granular: la barra pasa a
+        // modo barrido para no fingir un porcentaje que no conocemos.
+        progressStage.textContent = "Rasterizando diapositivas…";
+        barFill.classList.add("is-scanning");
       }
     });
 
     xhr.addEventListener("load", async () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        const blob = xhr.response;
         const disposition = xhr.getResponseHeader("Content-Disposition") || "";
         const match = /filename="([^"]+)"/.exec(disposition);
-        const suggestedName = match ? match[1] : `resultado.${format === "png" ? "zip" : format}`;
+        const name = match ? match[1] : `salida.${format === "pdf" ? "pdf" : "zip"}`;
 
         if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
-        lastObjectUrl = URL.createObjectURL(blob);
+        lastObjectUrl = URL.createObjectURL(xhr.response);
         downloadLink.href = lastObjectUrl;
-        downloadLink.download = suggestedName;
+        downloadLink.download = name;
 
-        const slideCount = xhr.getResponseHeader("X-Framewright-Slide-Count") || "?";
-        const strategy = xhr.getResponseHeader("X-Framewright-Detection-Strategy") || "desconocida";
-        const confidence = xhr.getResponseHeader("X-Framewright-Detection-Confidence") || "?";
-        resultMeta.textContent = `${slideCount} slide(s) · detección: ${strategy} (confianza ${confidence}) · ${suggestedName}`;
-        resultArea.style.display = "block";
+        showResult(xhr, name);
 
-        // Descarga automática además del link persistente.
         const a = document.createElement("a");
         a.href = lastObjectUrl;
-        a.download = suggestedName;
+        a.download = name;
         document.body.appendChild(a);
         a.click();
         a.remove();
       } else {
-        const body = await readErrorBlobAsJson(xhr.response);
-        showError(`Error ${xhr.status}`, body);
+        showError(`Fallo ${xhr.status}`, await readErrorBlob(xhr.response));
       }
-      resetUiAfterRequest();
+      resetRunUi();
     });
 
     xhr.addEventListener("error", () => {
-      showError("Error de red", { error: "No se pudo conectar con el servidor. Verifica que esté corriendo." });
-      resetUiAfterRequest();
+      showError("Sin conexión", { error: "No se pudo contactar al servidor. Verifica que siga corriendo." });
+      resetRunUi();
     });
 
     xhr.addEventListener("abort", () => {
-      showError("Cancelado", { error: "La conversión fue cancelada." });
-      resetUiAfterRequest();
+      showError("Abortado", { error: "La conversión se canceló." });
+      resetRunUi();
     });
 
     xhr.send(formData);
