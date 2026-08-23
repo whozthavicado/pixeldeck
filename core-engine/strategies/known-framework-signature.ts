@@ -18,8 +18,20 @@ const KNOWN_SIGNATURES: FrameworkSignature[] = [
   { name: "reveal.js", selector: ".reveal .slides > section", confidence: 0.97 },
   // Impress.js: cada "step" es una slide.
   { name: "impress.js", selector: "#impress > .step, .impress-container > .step", confidence: 0.93 },
-  // Claude Design (Claude Artifacts canvas): artboards con clase .dc-artboard.
-  { name: "claude-design", selector: ".dc-artboard", confidence: 0.93 },
+  // Claude Design (Claude Artifacts canvas, formato "deck-stage"): cada
+  // slide es un <section data-label="..." data-screen-label="NN"> dentro
+  // de <x-dc><x-import component-from-global-scope="deck-stage">. Ni usa
+  // height:100vh ni ningún framework conocido — la doble marca de datos es
+  // la señal más específica y confiable disponible. Confirmado contra un
+  // export real (verificado en desarrollo, no una suposición).
+  { name: "claude-design-deck-stage", selector: "x-dc section[data-label][data-screen-label]", confidence: 0.96 },
+  // Variante más laxa por si el wrapper <x-dc> cambia de nombre pero se
+  // mantiene la convención de atributos data-label + data-screen-label.
+  { name: "claude-design-deck-stage-loose", selector: "section[data-label][data-screen-label]", confidence: 0.9 },
+  // Versiones anteriores/alternativas de Claude Design con artboards con
+  // clase .dc-artboard (no confirmado contra un export real, se mantiene
+  // como cobertura adicional de bajo riesgo).
+  { name: "claude-design-artboard", selector: ".dc-artboard", confidence: 0.85 },
   // Google Slides exportado a HTML estático suele envolver cada slide en
   // un contenedor con clase "punch-viewer-content" o similar por página.
   { name: "google-slides-export", selector: '[id^="slide-"], .punch-viewer-content', confidence: 0.7 },
