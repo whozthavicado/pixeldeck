@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<style>
+  body { margin: 0; }
+  .panel { height: 100vh; width: 100vw; box-sizing: border-box; position: relative; }
+  .panel--one {
+    /* Franjas verticales rojo/azul de 12px de período — sirven como señal
+       de alta frecuencia: si el panel de vidrio realmente aplica blur, las
+       franjas DEBAJO del panel se mezclan entre sí; si el blur se pierde
+       (el bug documentado), las franjas se ven exactamente igual de nítidas
+       dentro y fuera del panel. */
+    background: repeating-linear-gradient(90deg, rgb(255,0,0) 0px 6px, rgb(0,0,255) 6px 12px);
+  }
+  .panel--two { background: rgb(30, 160, 90); }
+  .glass {
+    position: absolute;
+    left: 250px;
+    top: 125px;
+    width: 300px;
+    height: 150px;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+  }
+</style>
+</head>
+<body>
+  <section class="panel panel--one">
+    <div class="glass"></div>
+  </section>
+  <section class="panel panel--two"></section>
+</body>
+</html>

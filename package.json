@@ -1,0 +1,48 @@
+{
+  "name": "framewright",
+  "version": "0.1.0",
+  "description": "Renderiza presentaciones HTML/CSS en un navegador real (modo screen, no print) y las ensambla en PDF/JPG/PNG pixel-perfect.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && npm run copy-client",
+    "copy-client": "node -e \"require('fs').cpSync('client','dist/client',{recursive:true})\"",
+    "dev": "tsx watch server/index.ts",
+    "start": "node dist/server/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "lint": "eslint . --ext .ts"
+  },
+  "dependencies": {
+    "adm-zip": "^0.6.0",
+    "esbuild": "^0.28.2",
+    "express": "^4.19.2",
+    "get-port": "^7.1.0",
+    "multer": "^1.4.5-lts.1",
+    "nanoid": "^5.0.7",
+    "pdf-lib": "^1.17.1",
+    "pixelmatch": "^5.3.0",
+    "playwright": "^1.47.0",
+    "pngjs": "^7.0.0",
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jsdom": "^30.0.0",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^26.2.0",
+    "@types/pixelmatch": "^5.2.6",
+    "@types/pngjs": "^6.0.5",
+    "@typescript-eslint/eslint-plugin": "^8.6.0",
+    "@typescript-eslint/parser": "^8.6.0",
+    "eslint": "^8.57.0",
+    "jsdom": "^29.1.1",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2",
+    "vitest": "^4.1.11"
+  }
+}

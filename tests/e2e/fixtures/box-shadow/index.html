@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<style>
+  body { margin: 0; }
+  .panel { height: 100vh; width: 100vw; box-sizing: border-box; position: relative; }
+  .panel--one { background: rgb(255, 255, 255); }
+  .panel--two { background: rgb(10, 80, 160); }
+  .card {
+    position: absolute;
+    left: 250px;
+    top: 100px;
+    width: 300px;
+    height: 200px;
+    background: rgb(0, 0, 0);
+    box-shadow: 0 0 60px 20px rgba(0, 0, 0, 0.55);
+  }
+</style>
+</head>
+<body>
+  <section class="panel panel--one">
+    <div class="card"></div>
+  </section>
+  <section class="panel panel--two"></section>
+</body>
+</html>

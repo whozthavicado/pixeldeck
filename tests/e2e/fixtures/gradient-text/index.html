@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<style>
+  body { margin: 0; }
+  .panel { height: 100vh; width: 100vw; box-sizing: border-box; position: relative; }
+  .panel--one { background: rgb(20, 20, 40); }
+  .panel--two { background: rgb(180, 70, 40); }
+  .gradient-text {
+    position: absolute;
+    left: 40px;
+    top: 100px;
+    width: 600px;
+    height: 150px;
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    font-weight: 900;
+    font-size: 140px;
+    line-height: 150px;
+    white-space: nowrap;
+    background: linear-gradient(90deg, #ff8a00, #e52e71);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+</style>
+</head>
+<body>
+  <section class="panel panel--one">
+    <h1 class="gradient-text">████</h1>
+  </section>
+  <section class="panel panel--two"></section>
+</body>
+</html>

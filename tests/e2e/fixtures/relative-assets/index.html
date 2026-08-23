@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<style>
+  body { margin: 0; }
+  .panel { height: 100vh; width: 100vw; box-sizing: border-box; position: relative; }
+  .panel--one { background: rgb(240, 240, 240); }
+  .panel--two { background: rgb(40, 40, 40); }
+  .marker { position: absolute; left: 100px; top: 100px; width: 200px; height: 200px; }
+</style>
+</head>
+<body>
+  <section class="panel panel--one">
+    <!-- Ruta relativa a assets/ — solo resuelve si se sirve por HTTP (static-host.ts),
+         no funcionaría igual con file://. -->
+    <img class="marker" src="assets/marker.png" alt="marker" />
+  </section>
+  <section class="panel panel--two"></section>
+</body>
+</html>

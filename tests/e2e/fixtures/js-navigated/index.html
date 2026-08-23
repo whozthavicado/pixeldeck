@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<style>
+  body { margin: 0; }
+  .deck { position: relative; }
+  .deck > .slide { display: none; height: 100vh; width: 100vw; box-sizing: border-box; }
+  .deck > .slide.is-active { display: block; }
+</style>
+</head>
+<body>
+  <!-- Simula un deck con navegación por JS (Reveal.js-style): solo la
+       slide .is-active es visible en el DOM estático — igual que ocurre
+       cuando el runtime de navegación nunca llega a ejecutarse durante la
+       exportación a PDF. -->
+  <div class="deck">
+    <div class="slide is-active" style="background: rgb(210, 30, 30)"><h1>Slide 1</h1></div>
+    <div class="slide" style="background: rgb(30, 210, 30)"><h1>Slide 2</h1></div>
+    <div class="slide" style="background: rgb(30, 30, 210)"><h1>Slide 3</h1></div>
+    <div class="slide" style="background: rgb(210, 210, 30)"><h1>Slide 4</h1></div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Deck de ejemplo — navegación por clases toggle (JS keydown)</title>
+  <style>
+    .deck { position: relative; }
+    .deck > .slide { display: none; }
+    .deck > .slide.is-active { display: block; }
+  </style>
+</head>
+<body>
+  <div class="deck">
+    <div class="slide is-active">
+      <h1>Slide 1</h1>
+    </div>
+    <div class="slide">
+      <h1>Slide 2</h1>
+    </div>
+    <div class="slide">
+      <h1>Slide 3</h1>
+    </div>
+    <div class="slide">
+      <h1>Slide 4</h1>
+    </div>
+  </div>
+  <script>
+    document.addEventListener("keydown", (e) => {
+      // Navegación real vía JS: alterna la clase is-active entre .slide.
+      // (lógica de ejemplo, no se ejecuta en el test — solo se prueba el DOM estático)
+    });
+  </script>
+</body>
+</html>
