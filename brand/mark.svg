@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="PixelDeck">
+  <title>PixelDeck</title>
+  <!--
+    Marca: tres láminas de un deck escalonado donde la RESOLUCIÓN crece
+    hacia el frente. La trasera está construida con una retícula muy gruesa
+    (módulo 6), la media con una intermedia (módulo 3) y la frontal es
+    sólida y nítida. Cuenta en una sola forma lo que hace la herramienta:
+    recuperar el píxel exacto de una presentación.
+
+    La separación entre láminas es puramente TONAL (no hay contorno del
+    color de fondo), para que la marca funcione igual sobre claro y oscuro.
+  -->
+  <defs>
+    <!-- Módulo 6: píxeles gruesos, la lámina más degradada. -->
+    <pattern id="pdCoarse" patternUnits="userSpaceOnUse" width="6" height="6">
+      <rect width="4.5" height="4.5" fill="#6b3a0d" />
+    </pattern>
+    <!-- Módulo 3: resolución intermedia. -->
+    <pattern id="pdMid" patternUnits="userSpaceOnUse" width="3" height="3">
+      <rect width="2.2" height="2.2" fill="#bf6a15" />
+    </pattern>
+  </defs>
+
+  <g transform="translate(2 0)">
+    <!-- Trasera: 6 y 12 son múltiplos de 6, así la retícula encaja entera. -->
+    <rect x="6" y="12" width="36" height="18" fill="url(#pdCoarse)" />
+    <!-- Media: 12 y 24 son múltiplos de 3. -->
+    <rect x="12" y="24" width="36" height="18" fill="url(#pdMid)" />
+    <!-- Frontal: sólida, resolución completa. -->
+    <rect x="18" y="36" width="36" height="18" fill="#ff9d2e" />
+  </g>
+</svg>
