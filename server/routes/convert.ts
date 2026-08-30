@@ -13,7 +13,13 @@ import {
 import { ConcurrencyLimiter, QueueFullError } from "../job-queue.js";
 import { UnsafeZipError } from "../zip-extractor.js";
 import { logger } from "../logger.js";
-import { SlideDetectionError, InvalidSourceError, ConversionTimeoutError, TooManySlidesError } from "../../core-engine/errors.js";
+import {
+  SlideDetectionError,
+  InvalidSourceError,
+  ConversionTimeoutError,
+  TooManySlidesError,
+  AmbiguousEntryError,
+} from "../../core-engine/errors.js";
 import { SOURCE_KINDS, type SourceKind } from "../../core-engine/forced-strategy.js";
 import type { ContentShape } from "../../core-engine/capture-engine.js";
 
@@ -109,6 +115,7 @@ convertRouter.post("/convert", upload.single("file"), async (req: Request, res: 
         originalFileName: req.file!.originalname,
         format,
         scale: scale ?? undefined,
+        entryFile: typeof req.body?.entryFile === "string" && req.body.entryFile.trim() ? req.body.entryFile.trim() : undefined,
         sourceKind: sourceKind ?? undefined,
         contentShape: contentShape ?? undefined,
         nativeSize: nativeSize ?? undefined,
@@ -151,6 +158,10 @@ convertRouter.use((err: unknown, _req: Request, res: Response, _next: NextFuncti
   }
   if (err instanceof InvalidSourceError || err instanceof UnsafeZipError) {
     res.status(400).json({ error: err.message });
+    return;
+  }
+  if (err instanceof AmbiguousEntryError) {
+    res.status(422).json({ error: err.message, entryCandidates: err.candidates });
     return;
   }
   if (err instanceof SlideDetectionError) {

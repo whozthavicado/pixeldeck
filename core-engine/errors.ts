@@ -32,6 +32,24 @@ export class InvalidSourceError extends Error {
   }
 }
 
+/**
+ * Se lanza cuando el .zip contiene varios archivos HTML y el request no
+ * especificó cuál usar. Lleva la lista de candidatos para que la UII pueda
+ * pedirle al usuario que elija.
+ */
+export class AmbiguousEntryError extends Error {
+  readonly candidates: string[];
+
+  constructor(candidates: string[]) {
+    super(
+      `El paquete contiene varios archivos HTML y no se indicó cuál convertir. ` +
+        `Especifica "entryFile" con uno de: ${candidates.join(", ")}.`
+    );
+    this.name = "AmbiguousEntryError";
+    this.candidates = candidates;
+  }
+}
+
 /** Se lanza cuando una conversión excede su presupuesto de tiempo total. */
 export class ConversionTimeoutError extends Error {
   constructor(timeoutMs: number) {

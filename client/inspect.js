@@ -101,11 +101,21 @@
       notes.push("impress.js en el paquete.");
     }
 
-    const htmlEntry = entries.find((e) => /(^|\/)index\.html?$/i.test(e.name)) || entries.find((e) => /\.html?$/i.test(e.name));
-    if (htmlEntry) {
-      notes.push(`HTML de entrada: ${htmlEntry.name}`);
-    } else {
+    const htmlEntries = entries
+      .filter((e) => /\.html?$/i.test(e.name))
+      .map((e) => e.name)
+      .sort((a, b) => a.split("/").length - b.split("/").length || a.localeCompare(b));
+
+    if (htmlEntries.length === 0) {
       notes.push("⚠ No se ve ningún .html en el .zip.");
+    } else if (htmlEntries.length === 1) {
+      notes.push(`HTML de entrada: ${htmlEntries[0]}`);
+      rec.entryFile = htmlEntries[0];
+    } else {
+      const rooted = htmlEntries.find((n) => /(^|\/)index\.html?$/i.test(n));
+      rec.entryFile = rooted || htmlEntries[0];
+      rec.entryFiles = htmlEntries;
+      notes.push(`⚠ El .zip trae ${htmlEntries.length} presentaciones — elige cuál convertir arriba.`);
     }
 
     if (names.some((n) => /(^|\/)fonts?\//.test(n) || /\.(woff2?|ttf|otf)$/.test(n))) {

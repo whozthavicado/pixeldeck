@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<style>
+  body { margin: 0; }
+  /* Slides ocultas por defecto y reveladas de a una — como un deck-stage.
+     Cada una es display:grid con dos columnas: si el aislamiento fuerza
+     display:block, la segunda columna se desborda y el ancho de la slide
+     revienta. */
+  section { display: none; }
+  section.active { display: grid; }
+  section {
+    grid-template-columns: 1fr 300px;
+    width: 900px; height: 500px; box-sizing: border-box;
+  }
+  .wide { background: #c33; }
+  .side { background: #248; overflow: hidden; }
+  /* Contenido que desbordaría si la rejilla colapsa. */
+  .side img, .side .big { width: 1200px; height: 1200px; display: block; background: #0a0; }
+</style>
+</head>
+<body>
+  <section class="active" data-slide="0">
+    <div class="wide"><h1>Slide con rejilla 1</h1></div>
+    <div class="side"><div class="big"></div></div>
+  </section>
+  <section data-slide="1">
+    <div class="wide"><h1>Slide con rejilla 2</h1></div>
+    <div class="side"><div class="big"></div></div>
+  </section>
+</body>
+</html>

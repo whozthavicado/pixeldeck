@@ -95,6 +95,23 @@ describe("hints declarativos + verificación pixel-diff", () => {
     expect(pdf.getPageCount()).toBe(2); // 3 slides → 2 páginas
   });
 
+  it("aislar una slide display:grid NO revienta su maquetación (no se fuerza display:block)", async () => {
+    const result = await captureDeck({
+      sourceDir: join(FIXTURES_DIR, "grid-layout-deck"),
+      outputDir: await outDir("grid"),
+      viewport: { width: 1000, height: 600 },
+      scale: 1,
+    });
+    expect(result.slides).toHaveLength(2);
+    // La slide mide 900×500 por CSS. Si el aislamiento forzara display:block,
+    // la columna .side (con un hijo de 1200px) desbordaría y el ancho se
+    // dispararía muy por encima de 900.
+    for (const slide of result.slides) {
+      expect(slide.widthPx).toBeLessThanOrEqual(920);
+      expect(slide.heightPx).toBeLessThanOrEqual(520);
+    }
+  });
+
   it("el pool reutiliza el mismo proceso de navegador entre conversiones", async () => {
     const a = await acquireBrowser("chromium");
     const b = await acquireBrowser("chromium");

@@ -46,6 +46,8 @@ export interface ConversionRequest {
   format: OutputFormat;
   browserEngine?: BrowserEngine;
   scale?: number;
+  /** Archivo HTML a convertir dentro del .zip (ruta relativa). Ausente = auto. */
+  entryFile?: string;
   /** Hint: herramienta que generó el deck. */
   sourceKind?: SourceKind;
   /** Hint: forma del contenido. Default "deck". */
@@ -94,7 +96,7 @@ export async function runConversionPipeline(request: ConversionRequest): Promise
 
   try {
     await placeInput(request.uploadedFilePath, request.originalFileName, workspace.sourceDir);
-    const entryFile = await resolveEntryFile(workspace.sourceDir);
+    const entryFile = await resolveEntryFile(workspace.sourceDir, request.entryFile);
     logger.debug("Input listo", { workspace: workspace.root, entryFile });
 
     const forcedViewport = request.nativeSize ? NATIVE_SIZES[request.nativeSize] : undefined;

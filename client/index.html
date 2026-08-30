@@ -588,6 +588,11 @@ legend {
     </div>
 
     <div class="controls">
+      <fieldset class="span-2" id="entryFileField" hidden>
+        <legend><label for="entryFile">Presentación a convertir</label></legend>
+        <select class="field-select" id="entryFile" name="entryFile"></select>
+      </fieldset>
+
       <fieldset>
         <legend><label for="sourceKind">Origen</label></legend>
         <select class="field-select" id="sourceKind" name="sourceKind">
@@ -738,6 +743,8 @@ legend {
   const sourceKindSel = $("sourceKind");
   const nativeSizeSel = $("nativeSize");
   const scaleHint = $("scaleHint");
+  const entryFileField = $("entryFileField");
+  const entryFileSel = $("entryFile");
 
   const SCALES = [1, 2, 3, 4];
   const SCALE_HINTS = {
@@ -777,8 +784,22 @@ legend {
     if (el) el.checked = true;
   }
 
+  function populateEntryFiles(list, selected) {
+    entryFileSel.innerHTML = "";
+    for (const name of list) {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      entryFileSel.appendChild(opt);
+    }
+    if (selected) entryFileSel.value = selected;
+    entryFileField.hidden = list.length < 2;
+  }
+
   function applyRecommendation(rec) {
     if (!rec) return;
+    if (rec.entryFiles && rec.entryFiles.length > 1) populateEntryFiles(rec.entryFiles, rec.entryFile);
+    else { entryFileField.hidden = true; entryFileSel.innerHTML = ""; }
     if (rec.sourceKind) sourceKindSel.value = rec.sourceKind;
     if (rec.nativeSize) nativeSizeSel.value = rec.nativeSize;
     if (rec.contentShape) setRadio("contentShape", rec.contentShape);
@@ -811,6 +832,7 @@ legend {
     if (!file) {
       fileInfo.classList.remove("is-shown");
       reconArea.classList.remove("is-shown");
+      entryFileField.hidden = true;
       convertBtn.disabled = true;
       return;
     }
@@ -877,6 +899,12 @@ legend {
     const full = body.error || "Error desconocido.";
     errorDetail.textContent = hasProbes ? full.split("\n")[0] : full;
 
+    // El servidor detectó varios HTML en el .zip — poblar el selector para
+    // que el usuario elija y reintente sin volver a subir.
+    if (Array.isArray(body.entryCandidates) && body.entryCandidates.length > 1) {
+      populateEntryFiles(body.entryCandidates, body.entryCandidates[0]);
+    }
+
     if (hasProbes) {
       for (const r of body.detectionReport.allResults) {
         const li = document.createElement("li");
@@ -941,6 +969,7 @@ legend {
     formData.append("format", format);
     formData.append("scale", scale);
     formData.append("expectedResult", expectedResult);
+    if (!entryFileField.hidden && entryFileSel.value) formData.append("entryFile", entryFileSel.value);
     // "auto" se envía tal cual; el servidor lo trata como ausente.
     if (sourceKindSel.value !== "auto") formData.append("sourceKind", sourceKindSel.value);
     if (nativeSizeSel.value !== "auto") formData.append("nativeSize", nativeSizeSel.value);

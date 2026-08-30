@@ -84,6 +84,7 @@ controles. Puedes sobrescribir cualquiera:
 
 | Control | Para qué |
 |---|---|
+| **Presentación** (`entryFile`) | Cuál HTML del `.zip` convertir. Aparece solo cuando el paquete trae **varias** presentaciones (p. ej. un export con dos decks). Si no se indica y hay ambigüedad, `/convert` responde 422 con la lista de candidatos. |
 | **Origen** (`sourceKind`) | Declara la herramienta que generó el deck (Claude Design, Reveal.js, impress.js, Google Slides, genérico). Si se declara, el motor **omite el scoring de estrategias** y usa directamente los selectores de esa herramienta; si no matchean, cae a la detección automática. |
 | **Tamaño nativo** (`nativeSize`) | Fija el viewport (1920×1080, 1280×720, 1024×768, A4 vertical) y salta la auto-detección de dimensiones. |
 | **Forma** (`contentShape`) | `deck` (varias slides), `single-page` (poster/portada = 1 imagen), `long-scroll` (página larga, captura completa). |

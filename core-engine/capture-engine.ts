@@ -390,7 +390,22 @@ async function captureSingleSlide(args: CaptureSingleSlideArgs): Promise<Capture
           .filter((sel) => sel !== currentSelector)
           .map((sel) => `${sel} { display: none !important; }`)
           .join("\n");
-        const showRule = `${currentSelector} { display: block !important; opacity: 1 !important; visibility: visible !important; }`;
+
+        // Al revelar la slide actual NO se debe forzar `display: block`: muchas
+        // slides son `display: grid`/`flex` (columnas, áreas) y aplastarlas a
+        // block rompe su maquetación (una columna de mapa/gráfica se desborda
+        // sobre el resto). Solo se fuerza un `display` cuando la slide está
+        // realmente oculta, y se usa el valor que el autor puso inline
+        // (típicamente `grid`/`flex`), cayendo a `block` si no hay ninguno.
+        const el = document.querySelector(currentSelector) as HTMLElement | null;
+        let displayRule = "";
+        if (el) {
+          const inlineDisplay = el.style.display;
+          const computedDisplay = getComputedStyle(el).display;
+          if (inlineDisplay) displayRule = `display: ${inlineDisplay} !important;`;
+          else if (computedDisplay === "none") displayRule = "display: block !important;";
+        }
+        const showRule = `${currentSelector} { ${displayRule} opacity: 1 !important; visibility: visible !important; }`;
         style.textContent = `${hideRules}\n${showRule}`;
       },
       { id: ISOLATE_STYLE_TAG_ID, allSelectors, currentSelector }
