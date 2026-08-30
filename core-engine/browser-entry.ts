@@ -13,6 +13,7 @@
 import { detectSlides } from "./slide-detector.js";
 import { detectDeckDimensions, measureEffectiveScale } from "./deck-dimensions.js";
 import { detectSlidesForced, detectSingleRoot, type SourceKind } from "./forced-strategy.js";
+import { collectSlideContent, type SlideContent, type SlideContentOptions } from "./slide-content.js";
 import type { SerializableDetectionReport } from "./types.js";
 
 function detectSlidesForBrowser(): SerializableDetectionReport {
@@ -39,6 +40,14 @@ function detectSingleRootForBrowser(): SerializableDetectionReport {
   return detectSingleRoot(document);
 }
 
+function extractSlideContentForBrowser(
+  selector: string,
+  origin: { x: number; y: number; width: number; height: number },
+  options: SlideContentOptions
+): SlideContent {
+  return collectSlideContent(document, selector, origin, options);
+}
+
 declare global {
   interface Window {
     __pixeldeck: {
@@ -47,6 +56,7 @@ declare global {
       detectSingleRoot: typeof detectSingleRootForBrowser;
       detectDeckDimensions: typeof detectDeckDimensions;
       measureEffectiveScale: typeof measureEffectiveScale;
+      extractSlideContent: typeof extractSlideContentForBrowser;
     };
   }
 }
@@ -57,4 +67,5 @@ window.__pixeldeck = {
   detectSingleRoot: detectSingleRootForBrowser,
   detectDeckDimensions,
   measureEffectiveScale,
+  extractSlideContent: extractSlideContentForBrowser,
 };

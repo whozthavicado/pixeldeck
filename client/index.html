@@ -380,6 +380,20 @@ legend {
 }
 .field-hint b { color: var(--paper-200); font-weight: 500; }
 
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  min-height: 32px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--paper-200);
+  cursor: pointer;
+  padding: var(--sp-1) 0;
+}
+.check input { margin-top: 2px; accent-color: var(--safelight); width: 15px; height: 15px; flex-shrink: 0; }
+.check:hover { color: var(--paper-000); }
+
 /* ── Acción principal ───────────────────────────────────────────────── */
 
 .run {
@@ -601,6 +615,11 @@ legend {
           <option value="reveal">Reveal.js</option>
           <option value="impress">impress.js</option>
           <option value="google-slides">Google Slides (HTML)</option>
+          <option value="marp">Marp</option>
+          <option value="slidev">Slidev</option>
+          <option value="gamma">Gamma</option>
+          <option value="genially">Genially</option>
+          <option value="beautiful-ai">Beautiful.ai</option>
           <option value="generic-slide-class">Genérico (.slide)</option>
         </select>
       </fieldset>
@@ -660,6 +679,13 @@ legend {
         <p class="field-hint" id="scaleHint" aria-live="polite">
           <b>2×</b> — doble densidad tipo Retina. Nítida al ampliar o imprimir, sin inflar el archivo. 1× = tamaño exacto; 3–4× solo para impresión grande.
         </p>
+      </fieldset>
+
+      <fieldset class="span-2">
+        <legend>Opciones del PDF</legend>
+        <label class="check"><input type="checkbox" id="optTextLayer" checked /> <span>Capa de texto seleccionable / buscable</span></label>
+        <label class="check"><input type="checkbox" id="optNotes" /> <span>Descargar notas del orador (.md)</span></label>
+        <label class="check"><input type="checkbox" id="optDeterministic" /> <span>Salida reproducible (fechas fijas, sin animaciones)</span></label>
       </fieldset>
     </div>
 
@@ -925,6 +951,7 @@ legend {
       ["Detección", xhr.getResponseHeader("X-PixelDeck-Detection-Strategy") || "—"],
       ["Confianza", xhr.getResponseHeader("X-PixelDeck-Detection-Confidence") || "—"],
       ["Verificadas", verified || "—"],
+      ["Notas", xhr.getResponseHeader("X-PixelDeck-Notes") || "—"],
       ["Archivo", name],
     ];
     resultMeta.innerHTML = "";
@@ -970,6 +997,9 @@ legend {
     formData.append("scale", scale);
     formData.append("expectedResult", expectedResult);
     if (!entryFileField.hidden && entryFileSel.value) formData.append("entryFile", entryFileSel.value);
+    if (!$("optTextLayer").checked) formData.append("textLayer", "0");
+    if ($("optNotes").checked) formData.append("notesMd", "1");
+    if ($("optDeterministic").checked) formData.append("deterministic", "1");
     // "auto" se envía tal cual; el servidor lo trata como ausente.
     if (sourceKindSel.value !== "auto") formData.append("sourceKind", sourceKindSel.value);
     if (nativeSizeSel.value !== "auto") formData.append("nativeSize", nativeSizeSel.value);

@@ -13,11 +13,13 @@ Gratis y de código abierto (MIT). Úsalo como **CLI**, **librería**, **contene
 npx pixeldeck deck.zip --source-kind claude-design -o deck.pdf
 ```
 
+**El PDF resultante es pixel-perfect _y_ tiene texto real** — seleccionable, copiable, buscable en Drive/Spotlight y accesible — más un índice navegable y las notas del orador extraídas. Nada de "una foto de tu deck".
+
 ## Instalar / usar
 
 | Vía | Comando |
 |---|---|
-| **npx** (sin instalar) | `npx pixeldeck deck.html` |
+| **npx** (sin instalar) | `npx pixeldeck deck.html` · `npx pixeldeck https://mi-deck.vercel.app` |
 | **Global** | `npm i -g pixeldeck` · luego `pixeldeck deck.zip` |
 | **Docker (servidor + UI)** | `docker run --rm -p 4000:4000 ghcr.io/whozthavicado/pixeldeck` → abre `http://localhost:4000` |
 | **GitHub Action** | ver [abajo](#github-action) |
@@ -33,20 +35,28 @@ pixeldeck <entrada.html|entrada.zip> [opciones]
   -s, --scale <1-4>        densidad / DPR                          (default: 2)
   -r, --result <modo>      pdf-multipage | handout-2up |
                            image-per-slide | single-image
-  -e, --entry <archivo>    qué HTML del .zip convertir
-      --source-kind <k>    claude-design | reveal | impress | google-slides | generic-slide-class
+  -e, --entry <archivo>    qué HTML del .zip convertir (si trae varios)
+      --source-kind <k>    claude-design | reveal | impress | google-slides |
+                           marp | slidev | gamma | genially | beautiful-ai | generic-slide-class
       --content-shape <s>  deck | single-page | long-scroll
       --native-size <t>    1920x1080 | 1280x720 | 1024x768 | a4-portrait
       --engine <e>         chromium | firefox | webkit
+      --no-text-layer      no incrustar la capa de texto seleccionable
+      --deterministic      salida reproducible (fechas fijas, sin animaciones)
+      --notes-md           vuelca las notas del orador a <salida>.notes.md
+      --title / --author   metadatos del PDF
       --no-verify          desactiva la verificación pixel-diff
       --json               resultado como JSON en stdout
 ```
 
 ```bash
-pixeldeck deck.zip --entry "Suiza - Avance.dc.html" -r handout-2up
+pixeldeck https://mi-deck.vercel.app -o deck.pdf
+pixeldeck deck.zip --entry "Suiza - Avance.dc.html" -r handout-2up --notes-md
 pixeldeck poster.html --content-shape single-page -f png
-pixeldeck deck.zip --json > result.json
+pixeldeck deck.zip --deterministic --json > result.json   # bytes idénticos entre corridas
 ```
+
+Defaults por proyecto: crea un `pixeldeck.config.json` en la raíz (`{ "sourceKind": "claude-design", "deterministic": true }`); cualquier flag lo pisa.
 
 ### GitHub Action
 
@@ -105,7 +115,8 @@ pixeldeck/
 │   ├── stability-watcher.ts  # Espera por diff de screenshots consecutivos
 │   ├── image-diff.ts         # Fracción de píxeles distintos entre dos PNG (pixelmatch)
 │   ├── capture-engine.ts     # Orquesta Playwright: navega, espera, captura, verifica
-│   ├── pdf-assembler.ts      # Ensambla imágenes → PDF con pdf-lib (one-per-page / handout-2up)
+│   ├── slide-content.ts     # Extrae etiqueta, notas del orador y fragmentos de texto por slide
+│   ├── pdf-assembler.ts      # Imágenes → PDF (pdf-lib): capa de texto, índice, links, 2-up
 │   ├── image-converter.ts    # PNG → JPEG (sharp)
 │   ├── link-mapper.ts        # Reconstruye anotaciones de hipervínculo
 │   └── bundle-detector.ts    # Empaqueta el detector para inyectarlo en la página (esbuild)
@@ -156,6 +167,21 @@ controles. Puedes sobrescribir cualquiera:
 
 Todos son campos de formulario opcionales de `POST /convert`; ausentes o `auto` =
 comportamiento automático de siempre.
+
+### El PDF es un documento, no una imagen
+
+- **Capa de texto seleccionable/buscable** — cada palabra visible lleva encima texto invisible posicionado, así que el PDF se puede seleccionar, copiar y buscar (Drive, Spotlight, Ctrl-F) y es accesible. Se desactiva con `--no-text-layer`. _(Cubre alfabetos latinos — español, inglés, francés, portugués, alemán; otros scripts se omiten del layer sin afectar la imagen.)_
+- **Índice / bookmarks** — generado desde las etiquetas de slide (`data-label`, encabezados). Barra lateral navegable en el visor.
+- **Notas del orador** — extrae `data-speaker-notes` / `aside.notes` / `[data-notes]`. En la CLI: `--notes-md` (archivo `.md`); en la UI: casilla "Descargar notas" (entrega un `.zip` con PDF + notas).
+- **Metadatos** — `--title`, `--author`.
+
+### Salida reproducible
+
+`--deterministic` (`?deterministic=1` en la API) congela el reloj y el RNG de la página, desactiva animaciones en las capturas y fija las fechas del PDF. Dos conversiones del mismo input dan **bytes idénticos** — útil para snapshot-testear decks en CI.
+
+### Input por URL
+
+`pixeldeck https://…` o `-F "url=https://…"` en `/convert` captura una página publicada directamente, sin subir archivos.
 
 ### Verificación pixel a pixel
 

@@ -119,4 +119,81 @@ describe("hints declarativos + verificación pixel-diff", () => {
     a.release();
     b.release();
   });
+
+  it("extrae capa de texto, etiquetas y notas del orador de cada slide", async () => {
+    const result = await captureDeck({
+      sourceDir: join(FIXTURES_DIR, "claude-design-deck"),
+      outputDir: await outDir("content"),
+      viewport: VIEWPORT,
+      scale: 1,
+      sourceKind: "claude-design",
+    });
+    expect(result.slides).toHaveLength(3);
+    for (const slide of result.slides) {
+      expect(slide.textRuns.length).toBeGreaterThan(0);
+      expect(slide.label).toBeTruthy();
+      expect(slide.notes).toBeTruthy();
+    }
+    expect(result.slides[0].notes).toContain("Saludar");
+  });
+
+  it("el PDF resultante tiene texto real seleccionable (capa de texto)", async () => {
+    const dir = await outDir("pdftext");
+    const result = await captureDeck({
+      sourceDir: join(FIXTURES_DIR, "claude-design-deck"),
+      outputDir: dir,
+      viewport: VIEWPORT,
+      scale: 1,
+      sourceKind: "claude-design",
+    });
+    const pdfPath = join(dir, "out.pdf");
+    const assembled = await assemblePdf({
+      slides: result.slides.map((s) => ({
+        filePath: s.filePath,
+        widthPx: s.widthPx,
+        heightPx: s.heightPx,
+        label: s.label,
+        textRuns: s.textRuns,
+      })),
+      outputPath: pdfPath,
+    });
+    expect(assembled.textRunCount).toBeGreaterThan(0);
+    expect(assembled.outlineEntryCount).toBe(3);
+  });
+
+  it("captura un deck desde una URL directa (sin archivo)", async () => {
+    const { startStaticHost } = await import("../../server/static-host.js");
+    const host = await startStaticHost(join(FIXTURES_DIR, "claude-design-deck"));
+    try {
+      const result = await captureDeck({
+        url: `${host.url}/index.html`,
+        outputDir: await outDir("url"),
+        viewport: VIEWPORT,
+        scale: 1,
+        sourceKind: "claude-design",
+      });
+      expect(result.slides).toHaveLength(3);
+    } finally {
+      await host.close();
+    }
+  });
+
+  it("modo determinista: dos capturas del mismo deck dan imágenes idénticas", async () => {
+    const opts = {
+      sourceDir: join(FIXTURES_DIR, "claude-design-deck"),
+      viewport: VIEWPORT,
+      scale: 1,
+      sourceKind: "claude-design" as const,
+      deterministic: true,
+      verify: { enabled: false },
+    };
+    const a = await captureDeck({ ...opts, outputDir: await outDir("det-a") });
+    const b = await captureDeck({ ...opts, outputDir: await outDir("det-b") });
+    const fs = await import("node:fs/promises");
+    for (let i = 0; i < a.slides.length; i++) {
+      const bufA = await fs.readFile(a.slides[i].filePath);
+      const bufB = await fs.readFile(b.slides[i].filePath);
+      expect(Buffer.compare(bufA, bufB)).toBe(0);
+    }
+  });
 });

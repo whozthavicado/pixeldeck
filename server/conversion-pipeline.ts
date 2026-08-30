@@ -1,4 +1,4 @@
-import { copyFile } from "node:fs/promises";
+import { copyFile, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { captureDeck, type BrowserEngine, type CapturedSlide, type ContentShape } from "../core-engine/capture-engine.js";
 import { assemblePdf } from "../core-engine/pdf-assembler.js";
@@ -39,10 +39,12 @@ const NATIVE_SIZES: Record<NativeSize, { width: number; height: number }> = {
 };
 
 export interface ConversionRequest {
-  /** Ruta del archivo ya subido a disco (por multer). */
-  uploadedFilePath: string;
+  /** Ruta del archivo ya subido a disco (por multer). Omitir si se pasa `url`. */
+  uploadedFilePath?: string;
   /** Nombre original del archivo subido, usado solo para inferir su extensión. */
-  originalFileName: string;
+  originalFileName?: string;
+  /** URL pública a capturar en vez de un archivo subido. */
+  url?: string;
   format: OutputFormat;
   browserEngine?: BrowserEngine;
   scale?: number;
@@ -56,6 +58,17 @@ export interface ConversionRequest {
   nativeSize?: NativeSize;
   /** Qué entregar. Ausente = derivado de `format`. */
   expectedResult?: ExpectedResult;
+  /** Verificación pixel-diff de cada slide. Default: según `PIXELDECK_VERIFY`. */
+  verify?: boolean;
+  /** Capa de texto seleccionable/buscable en el PDF. Default: true. */
+  textLayer?: boolean;
+  /** Salida reproducible (fechas fijas, animaciones desactivadas). Default: false. */
+  deterministic?: boolean;
+  /** Metadatos del PDF. */
+  title?: string;
+  author?: string;
+  /** Generar un archivo Markdown con las notas del orador junto a la salida. */
+  notesMd?: boolean;
 }
 
 export interface ConversionOutcome {
@@ -67,8 +80,22 @@ export interface ConversionOutcome {
   detectionConfidence: number;
   /** Slides que pasaron la verificación pixel-diff (de `slideCount`). */
   verifiedCount: number;
+  /** Slides con notas del orador extraídas. */
+  notesCount: number;
+  /** Ruta al Markdown de notas del orador, si se pidió (`notesMd`). */
+  notesFilePath?: string;
   /** Debe llamarse SOLO después de que la respuesta HTTP terminó de enviarse. */
   cleanup: () => Promise<void>;
+}
+
+/** Arma un Markdown con las notas del orador, una sección por slide. */
+function buildNotesMarkdown(title: string | undefined, slides: CapturedSlide[]): string {
+  const lines: string[] = [`# Notas del orador${title ? ` — ${title}` : ""}`, ""];
+  for (const s of slides) {
+    const heading = s.label ? `Slide ${s.index + 1} · ${s.label}` : `Slide ${s.index + 1}`;
+    lines.push(`## ${heading}`, "", s.notes?.trim() || "_(sin notas)_", "");
+  }
+  return lines.join("\n");
 }
 
 /** Deriva el resultado esperado del `format` cuando el usuario no lo declaró. */
@@ -95,14 +122,21 @@ export async function runConversionPipeline(request: ConversionRequest): Promise
   logger.info("Conversión iniciada", { workspace: workspace.root, format: request.format, originalFileName: request.originalFileName });
 
   try {
-    await placeInput(request.uploadedFilePath, request.originalFileName, workspace.sourceDir);
-    const entryFile = await resolveEntryFile(workspace.sourceDir, request.entryFile);
-    logger.debug("Input listo", { workspace: workspace.root, entryFile });
+    let entryFile: string | undefined;
+    if (!request.url) {
+      if (!request.uploadedFilePath || !request.originalFileName) {
+        throw new InvalidSourceError("runConversionPipeline requiere `uploadedFilePath` + `originalFileName`, o `url`.");
+      }
+      await placeInput(request.uploadedFilePath, request.originalFileName, workspace.sourceDir);
+      entryFile = await resolveEntryFile(workspace.sourceDir, request.entryFile);
+      logger.debug("Input listo", { workspace: workspace.root, entryFile });
+    }
 
     const forcedViewport = request.nativeSize ? NATIVE_SIZES[request.nativeSize] : undefined;
 
     const captureResult = await captureDeck({
-      sourceDir: workspace.sourceDir,
+      sourceDir: request.url ? undefined : workspace.sourceDir,
+      url: request.url,
       entryFile,
       outputDir: workspace.outputDir,
       scale: request.scale,
@@ -112,13 +146,16 @@ export async function runConversionPipeline(request: ConversionRequest): Promise
       contentShape: request.contentShape,
       viewport: forcedViewport,
       autoDetectDimensions: forcedViewport ? false : undefined,
-      verify: { enabled: VERIFY_ENABLED },
+      verify: { enabled: request.verify ?? VERIFY_ENABLED },
+      textLayer: request.textLayer,
+      deterministic: request.deterministic,
     });
 
     const detectionStrategy = captureResult.detection.winningStrategy;
     const detectionConfidence = captureResult.detection.finalConfidence;
     const slideCount = captureResult.slides.length;
     const verifiedCount = captureResult.verifiedCount;
+    const notesCount = captureResult.slides.filter((s) => s.notes).length;
     const expectedResult = resolveExpectedResult(request, slideCount);
 
     logger.info("Detección y captura completas", {
@@ -132,14 +169,39 @@ export async function runConversionPipeline(request: ConversionRequest): Promise
       captureMs: captureResult.timings.captureMs,
     });
 
-    const base = { slideCount, verifiedCount, detectionStrategy, detectionConfidence, cleanup: workspace.cleanup };
+    let notesFilePath: string | undefined;
+    if (request.notesMd && notesCount > 0) {
+      notesFilePath = join(workspace.outputDir, "presentation.notes.md");
+      await writeFile(notesFilePath, buildNotesMarkdown(request.title, captureResult.slides), "utf-8");
+    }
+
+    const base = {
+      slideCount,
+      verifiedCount,
+      notesCount,
+      notesFilePath,
+      detectionStrategy,
+      detectionConfidence,
+      cleanup: workspace.cleanup,
+    };
 
     if (expectedResult === "pdf-multipage" || expectedResult === "handout-2up") {
       const pdfPath = join(workspace.outputDir, "presentation.pdf");
       await assemblePdf({
-        slides: captureResult.slides.map((s) => ({ filePath: s.filePath, widthPx: s.widthPx, heightPx: s.heightPx, links: s.links })),
+        slides: captureResult.slides.map((s) => ({
+          filePath: s.filePath,
+          widthPx: s.widthPx,
+          heightPx: s.heightPx,
+          links: s.links,
+          label: s.label,
+          textRuns: s.textRuns,
+        })),
         outputPath: pdfPath,
         layout: expectedResult === "handout-2up" ? "handout-2up" : "one-per-page",
+        textLayer: request.textLayer,
+        deterministic: request.deterministic,
+        title: request.title,
+        author: request.author,
       });
 
       logger.info("Conversión terminada", { workspace: workspace.root, expectedResult, totalMs: Date.now() - pipelineStart });

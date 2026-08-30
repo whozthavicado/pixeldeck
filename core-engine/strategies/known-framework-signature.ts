@@ -35,6 +35,17 @@ export const KNOWN_SIGNATURES: FrameworkSignature[] = [
   // Google Slides exportado a HTML estático suele envolver cada slide en
   // un contenedor con clase "punch-viewer-content" o similar por página.
   { name: "google-slides-export", selector: '[id^="slide-"], .punch-viewer-content', confidence: 0.7 },
+  // Marp: exporta cada slide como <section> hija de una raíz .marpit.
+  { name: "marp", selector: ".marpit > svg > foreignObject > section, .marpit section", confidence: 0.92 },
+  // Slidev (Vue): cada slide es un contenedor .slidev-page.
+  { name: "slidev", selector: ".slidev-page, [id^='slide-'].slidev-page", confidence: 0.9 },
+  // Gamma export: contenedores con clate data-card-id / .card-wrapper por slide.
+  { name: "gamma", selector: "[data-card-id], .card-wrapper > .card", confidence: 0.82 },
+  // Genially: cada "página" es un .genially-view-navigation-actions sibling
+  // de contenedores .genially-view-canvas; el patrón más estable es .container-3d.
+  { name: "genially", selector: ".genially-view-canvas, [data-slide-index]", confidence: 0.72 },
+  // Beautiful.ai / Deck-style: .slide-container repetido.
+  { name: "beautiful-ai", selector: ".slide-container, .slide-wrapper > .slide", confidence: 0.75 },
   // Patrón genérico muy común en decks generados por IA: contenedor con
   // clase .slide o .slide-container como hijos directos de un wrapper.
   { name: "generic-.slide-class", selector: ".slides > .slide, .deck > .slide, body > .slide", confidence: 0.8 },

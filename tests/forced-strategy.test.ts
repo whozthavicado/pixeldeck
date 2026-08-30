@@ -26,6 +26,16 @@ describe("detectSlidesForced", () => {
     expect(detectSlidesForced(document, "reveal").slides).toHaveLength(2);
   });
 
+  it("marp: matchea las <section> de .marpit", () => {
+    const document = doc(`<div class="marpit"><section>1</section><section>2</section><section>3</section></div>`);
+    expect(detectSlidesForced(document, "marp").slides).toHaveLength(3);
+  });
+
+  it("slidev: matchea .slidev-page", () => {
+    const document = doc(`<div class="slidev-page">1</div><div class="slidev-page">2</div>`);
+    expect(detectSlidesForced(document, "slidev").slides).toHaveLength(2);
+  });
+
   it("devuelve slides:[] cuando el hint no matchea nada (→ el motor hace fallback)", () => {
     const document = doc(`<main><h1>Un poster suelto</h1></main>`);
     const report = detectSlidesForced(document, "claude-design");

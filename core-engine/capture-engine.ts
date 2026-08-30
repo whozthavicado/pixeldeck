@@ -7,6 +7,7 @@ import { getDetectorBundle } from "./bundle-detector.js";
 import { waitForVisualStability, type StabilityOptions } from "./stability-watcher.js";
 import { diffRatio } from "./image-diff.js";
 import { extractLinkAnnotations } from "./link-mapper.js";
+import type { SlideContent, TextRun } from "./slide-content.js";
 import type { DetectedDimensions } from "./deck-dimensions.js";
 import { computeAutoTimeout, resolveTimeoutBudget } from "./timeout-budget.js";
 import { SlideDetectionError, InvalidSourceError, ConversionTimeoutError, TooManySlidesError } from "./errors.js";
@@ -31,9 +32,11 @@ export interface VerifyOptions {
 }
 
 export interface CaptureOptions {
-  /** Carpeta con el HTML/CSS/JS/imágenes/fuentes ya extraídos (relativos entre sí). */
-  sourceDir: string;
-  /** Archivo de entrada dentro de sourceDir. Default: "index.html". */
+  /** Carpeta con el HTML/CSS/JS/imágenes/fuentes ya extraídos. Requerido salvo que se pase `url`. */
+  sourceDir?: string;
+  /** URL pública a capturar directamente, en vez de servir `sourceDir`. */
+  url?: string;
+  /** Archivo de entrada dentro de sourceDir. Default: "index.html". Ignorado si se pasa `url`. */
   entryFile?: string;
   /** Carpeta donde escribir los PNG capturados, uno por slide. */
   outputDir: string;
@@ -77,6 +80,15 @@ export interface CaptureOptions {
   sourceKind?: SourceKind;
   /** Hint del usuario: forma del contenido. Default: "deck". */
   contentShape?: ContentShape;
+  /** Extraer una capa de texto seleccionable/buscable de cada slide. Default: true. */
+  textLayer?: boolean;
+  /** Extraer notas del orador (`data-speaker-notes`, `aside.notes`…). Default: true. */
+  speakerNotes?: boolean;
+  /**
+   * Salida reproducible: congela `Date`/`Math.random`, fuerza
+   * `prefers-reduced-motion` y desactiva animaciones en las capturas. Default: false.
+   */
+  deterministic?: boolean;
 }
 
 export interface CapturedSlide {
@@ -91,6 +103,12 @@ export interface CapturedSlide {
   /** true si una segunda captura idéntica coincidió con la entregada (ver VerifyOptions). */
   verified: boolean;
   links: LinkAnnotation[];
+  /** Etiqueta corta de la slide (para el índice del PDF), o null. */
+  label: string | null;
+  /** Notas del orador de la slide, o null. */
+  notes: string | null;
+  /** Fragmentos de texto posicionados para la capa de texto seleccionable. */
+  textRuns: TextRun[];
 }
 
 export interface CaptureResult {
@@ -117,6 +135,23 @@ const ISOLATE_STYLE_TAG_ID = "__pixeldeck_isolate__";
 /** Tope del deviceScaleFactor tras compensar: más allá, el costo de memoria/CPU no compensa la ganancia visual. */
 const MAX_DEVICE_SCALE_FACTOR = 4;
 
+/**
+ * Init script para el modo determinista: congela el reloj y el RNG y
+ * neutraliza `requestAnimationFrame` en bucle, para que dos conversiones del
+ * mismo input produzcan el mismo píxel.
+ */
+const DETERMINISTIC_INIT = `(() => {
+  const FIXED = 1700000000000;
+  const _Date = Date;
+  // @ts-ignore
+  globalThis.Date = class extends _Date {
+    constructor(...args) { super(...(args.length ? args : [FIXED])); }
+    static now() { return FIXED; }
+  };
+  let seed = 42;
+  Math.random = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+})();`;
+
 const VERIFY_DEFAULTS: Required<VerifyOptions> = {
   enabled: true,
   threshold: 0.001,
@@ -141,15 +176,28 @@ export async function captureDeck(options: CaptureOptions): Promise<CaptureResul
   const autoDetectDimensions = options.autoDetectDimensions ?? true;
   const reuseBrowser = options.reuseBrowser ?? true;
   const contentShape: ContentShape = options.contentShape ?? "deck";
+  const textLayer = options.textLayer ?? true;
+  const speakerNotes = options.speakerNotes ?? true;
+  const deterministic = options.deterministic ?? false;
   const sourceKind = isSourceKind(options.sourceKind) ? options.sourceKind : undefined;
   const verify = { ...VERIFY_DEFAULTS, ...options.verify };
   const isSinglePage = contentShape === "single-page" || contentShape === "long-scroll";
   const totalStart = Date.now();
 
-  await assertEntryFileExists(options.sourceDir, entryFile);
   await mkdir(options.outputDir, { recursive: true });
 
-  const host = await startStaticHost(options.sourceDir);
+  if (!options.url && !options.sourceDir) {
+    throw new InvalidSourceError("captureDeck requiere `sourceDir` o `url`.");
+  }
+
+  // `url` directo → no se levanta el host estático. Si no, se sirve sourceDir.
+  const host = options.url
+    ? { url: options.url, close: async () => undefined }
+    : await (async () => {
+        await assertEntryFileExists(options.sourceDir!, entryFile);
+        return startStaticHost(options.sourceDir!);
+      })();
+  const targetUrl = options.url ?? `${host.url}/${entryFile}`;
 
   let lease: BrowserLease | null = null;
   let ownBrowser: Browser | null = null;
@@ -179,12 +227,16 @@ export async function captureDeck(options: CaptureOptions): Promise<CaptureResul
   const bundle = await getDetectorBundle();
 
   try {
-    let context = await browser.newContext({ viewport, deviceScaleFactor: scale });
+    const contextOptions = deterministic
+      ? { viewport, deviceScaleFactor: scale, reducedMotion: "reduce" as const }
+      : { viewport, deviceScaleFactor: scale };
+    let context = await browser.newContext(contextOptions);
     activeContext = context;
+    if (deterministic) await context.addInitScript(DETERMINISTIC_INIT);
     let page = await context.newPage();
 
     const loadPage = async (target: Page) => {
-      await target.goto(`${host.url}/${entryFile}`, { waitUntil: "load" });
+      await target.goto(targetUrl, { waitUntil: "load" });
       await target.evaluate(() => document.fonts.ready.then(() => undefined));
       await target.addScriptTag({ content: bundle });
     };
@@ -219,8 +271,13 @@ export async function captureDeck(options: CaptureOptions): Promise<CaptureResul
         appliedScale = Math.min(MAX_DEVICE_SCALE_FACTOR, scale / effectiveScale);
 
         await context.close();
-        context = await browser.newContext({ viewport: effectiveViewport, deviceScaleFactor: appliedScale });
+        context = await browser.newContext(
+          deterministic
+            ? { viewport: effectiveViewport, deviceScaleFactor: appliedScale, reducedMotion: "reduce" as const }
+            : { viewport: effectiveViewport, deviceScaleFactor: appliedScale }
+        );
         activeContext = context;
+        if (deterministic) await context.addInitScript(DETERMINISTIC_INIT);
         page = await context.newPage();
         await loadPage(page);
 
@@ -264,6 +321,9 @@ export async function captureDeck(options: CaptureOptions): Promise<CaptureResul
         verify,
         fullPage: contentShape === "long-scroll",
         isolate: !isSinglePage,
+        textLayer,
+        speakerNotes,
+        deterministic,
       });
       capturedSlides.push(captured);
     }
@@ -370,6 +430,9 @@ interface CaptureSingleSlideArgs {
   fullPage: boolean;
   /** Aislar la slide ocultando a las demás (falso para página única/scroll). */
   isolate: boolean;
+  textLayer: boolean;
+  speakerNotes: boolean;
+  deterministic: boolean;
 }
 
 /**
@@ -379,7 +442,7 @@ interface CaptureSingleSlideArgs {
  * coincida — reintentando si no.
  */
 async function captureSingleSlide(args: CaptureSingleSlideArgs): Promise<CapturedSlide> {
-  const { page, allSelectors, currentSelector, slideIndex, outputDir, stabilityOptions, verify, fullPage, isolate } = args;
+  const { page, allSelectors, currentSelector, slideIndex, outputDir, stabilityOptions, verify, fullPage, isolate, textLayer, speakerNotes, deterministic } = args;
 
   if (isolate) {
     await page.evaluate(
@@ -444,10 +507,11 @@ async function captureSingleSlide(args: CaptureSingleSlideArgs): Promise<Capture
   //  - clip: deck normal — recorte al bounding box de la slide aislada.
   const mode: "fullpage" | "element" | "clip" = fullPage ? "fullpage" : isolate ? "clip" : "element";
 
+  const anim = deterministic ? ("disabled" as const) : ("allow" as const);
   const takeShot = (target?: string): Promise<Buffer> => {
-    if (mode === "fullpage") return page.screenshot({ path: target, type: "png", fullPage: true });
-    if (mode === "element") return locator.screenshot({ path: target, type: "png" });
-    return page.screenshot({ path: target, type: "png", clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+    if (mode === "fullpage") return page.screenshot({ path: target, type: "png", fullPage: true, animations: anim });
+    if (mode === "element") return locator.screenshot({ path: target, type: "png", animations: anim });
+    return page.screenshot({ path: target, type: "png", animations: anim, clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
   };
 
   const measure = async (): Promise<Rect> => {
@@ -488,6 +552,16 @@ async function captureSingleSlide(args: CaptureSingleSlideArgs): Promise<Capture
   }
 
   const links = fullPage ? [] : await extractLinkAnnotations(page, currentSelector, box);
+  const emptyContent: SlideContent = { label: null, notes: null, textRuns: [] };
+  const content: SlideContent =
+    textLayer || speakerNotes
+      ? await page
+          .evaluate(
+            (a) => window.__pixeldeck.extractSlideContent(a.selector, a.origin, a.options),
+            { selector: currentSelector, origin: box, options: { textLayer, notes: speakerNotes } }
+          )
+          .catch(() => emptyContent)
+      : emptyContent;
 
   return {
     index: slideIndex,
@@ -498,5 +572,8 @@ async function captureSingleSlide(args: CaptureSingleSlideArgs): Promise<Capture
     stableBeforeCapture: stability.stable,
     verified,
     links,
+    label: content.label,
+    notes: content.notes,
+    textRuns: content.textRuns,
   };
 }

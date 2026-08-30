@@ -14,6 +14,11 @@ export type SourceKind =
   | "reveal"
   | "impress"
   | "google-slides"
+  | "marp"
+  | "slidev"
+  | "gamma"
+  | "genially"
+  | "beautiful-ai"
   | "generic-slide-class";
 
 export const SOURCE_KINDS: readonly SourceKind[] = [
@@ -21,6 +26,11 @@ export const SOURCE_KINDS: readonly SourceKind[] = [
   "reveal",
   "impress",
   "google-slides",
+  "marp",
+  "slidev",
+  "gamma",
+  "genially",
+  "beautiful-ai",
   "generic-slide-class",
 ] as const;
 
@@ -39,6 +49,11 @@ export const SELECTORS_BY_KIND: Record<SourceKind, string[]> = {
   reveal: [".reveal .slides > section"],
   impress: ["#impress > .step", ".impress-container > .step"],
   "google-slides": ['[id^="slide-"]', ".punch-viewer-content"],
+  marp: [".marpit > svg > foreignObject > section", ".marpit section", "section[data-marpit-pagination]"],
+  slidev: [".slidev-page", "[id^='slide-'].slidev-page"],
+  gamma: ["[data-card-id]", ".card-wrapper > .card"],
+  genially: [".genially-view-canvas", "[data-slide-index]"],
+  "beautiful-ai": [".slide-container", ".slide-wrapper > .slide"],
   "generic-slide-class": [
     ".slides > .slide",
     ".deck > .slide",

@@ -2,8 +2,9 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import multer, { MulterError } from "multer";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { extname } from "node:path";
+import { dirname, extname, join } from "node:path";
 import { nanoid } from "nanoid";
+import { buildZip } from "../zip-builder.js";
 import {
   runConversionPipeline,
   type OutputFormat,
@@ -61,21 +62,31 @@ const upload = multer({
 export const convertRouter = Router();
 
 convertRouter.post("/convert", upload.single("file"), async (req: Request, res: Response, next: NextFunction) => {
-  if (!req.file) {
-    res.status(400).json({ error: "No se recibió ningún archivo. Envía un campo de formulario 'file' con un .html o .zip." });
+  const rawUrl = typeof req.body?.url === "string" ? req.body.url.trim() : "";
+  const cleanup = async () => {
+    if (req.file) await safeUnlink(req.file.path);
+  };
+
+  if (!req.file && !rawUrl) {
+    res.status(400).json({ error: "Envía un archivo ('file' con un .html o .zip) o un campo 'url'." });
+    return;
+  }
+  if (rawUrl && !/^https?:\/\/[^\s]+$/i.test(rawUrl)) {
+    await cleanup();
+    res.status(400).json({ error: 'Parámetro "url" inválido. Debe ser http(s)://…' });
     return;
   }
 
   const format = parseFormat(req.body?.format);
   if (!format) {
-    await safeUnlink(req.file.path);
+    await cleanup();
     res.status(400).json({ error: 'Parámetro "format" inválido. Valores aceptados: "pdf", "png", "jpg".' });
     return;
   }
 
   const scale = parseScale(req.body?.scale);
   if (scale === null) {
-    await safeUnlink(req.file.path);
+    await cleanup();
     res.status(400).json({ error: 'Parámetro "scale" inválido. Debe ser un número entre 1 y 4.' });
     return;
   }
@@ -92,16 +103,19 @@ convertRouter.post("/convert", upload.single("file"), async (req: Request, res: 
     ["expectedResult", expectedResult, EXPECTED_RESULTS],
   ] as const) {
     if (value === null) {
-      await safeUnlink(req.file.path);
+      await cleanup();
       res.status(400).json({ error: `Parámetro "${name}" inválido. Valores aceptados: ${allowed.join(", ")}, auto.` });
       return;
     }
   }
 
+  const isFalse = (v: unknown) => v === "0" || v === "false" || v === false;
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+
   const requestStart = Date.now();
   logger.info("Solicitud de conversión recibida", {
-    originalFileName: req.file.originalname,
-    sizeBytes: req.file.size,
+    source: rawUrl || req.file?.originalname,
+    sizeBytes: req.file?.size,
     format,
     scale: scale ?? "default",
     activeConversions: limiter.activeCount,
@@ -111,15 +125,22 @@ convertRouter.post("/convert", upload.single("file"), async (req: Request, res: 
   try {
     const outcome = await limiter.run(() =>
       runConversionPipeline({
-        uploadedFilePath: req.file!.path,
-        originalFileName: req.file!.originalname,
+        uploadedFilePath: req.file?.path,
+        originalFileName: req.file?.originalname,
+        url: rawUrl || undefined,
         format,
         scale: scale ?? undefined,
-        entryFile: typeof req.body?.entryFile === "string" && req.body.entryFile.trim() ? req.body.entryFile.trim() : undefined,
+        entryFile: str(req.body?.entryFile),
         sourceKind: sourceKind ?? undefined,
         contentShape: contentShape ?? undefined,
         nativeSize: nativeSize ?? undefined,
         expectedResult: expectedResult ?? undefined,
+        verify: isFalse(req.body?.verify) ? false : undefined,
+        textLayer: isFalse(req.body?.textLayer) ? false : undefined,
+        deterministic: req.body?.deterministic === "1" || req.body?.deterministic === "true" || undefined,
+        notesMd: req.body?.notesMd === "1" || req.body?.notesMd === "true" || undefined,
+        title: str(req.body?.title),
+        author: str(req.body?.author),
       })
     );
 
@@ -127,8 +148,26 @@ convertRouter.post("/convert", upload.single("file"), async (req: Request, res: 
     res.setHeader("X-PixelDeck-Detection-Strategy", outcome.detectionStrategy ?? "none");
     res.setHeader("X-PixelDeck-Detection-Confidence", outcome.detectionConfidence.toFixed(2));
     res.setHeader("X-PixelDeck-Verified", `${outcome.verifiedCount}/${outcome.slideCount}`);
+    res.setHeader("X-PixelDeck-Notes", `${outcome.notesCount}/${outcome.slideCount}`);
 
-    res.download(outcome.resultFilePath, outcome.resultFileName, async (downloadError) => {
+    // Si se pidieron las notas y el resultado es un solo PDF, se entrega un
+    // .zip con el PDF + el .md de notas juntos.
+    let deliverPath = outcome.resultFilePath;
+    let deliverName = outcome.resultFileName;
+    if (outcome.notesFilePath && deliverName.toLowerCase().endsWith(".pdf")) {
+      const bundlePath = join(dirname(outcome.resultFilePath), "presentation-con-notas.zip");
+      await buildZip(
+        [
+          { path: outcome.resultFilePath, nameInZip: deliverName },
+          { path: outcome.notesFilePath, nameInZip: "presentation.notes.md" },
+        ],
+        bundlePath
+      );
+      deliverPath = bundlePath;
+      deliverName = "presentation-con-notas.zip";
+    }
+
+    res.download(deliverPath, deliverName, async (downloadError) => {
       // res.download ya envió (o intentó enviar) la respuesta — recién ahora
       // es seguro borrar el workspace temporal.
       await outcome.cleanup();
@@ -136,7 +175,7 @@ convertRouter.post("/convert", upload.single("file"), async (req: Request, res: 
         next(downloadError);
       } else if (!downloadError) {
         logger.info("Respuesta enviada", {
-          originalFileName: req.file!.originalname,
+          source: rawUrl || req.file?.originalname,
           slideCount: outcome.slideCount,
           totalRequestMs: Date.now() - requestStart,
         });
@@ -145,7 +184,7 @@ convertRouter.post("/convert", upload.single("file"), async (req: Request, res: 
   } catch (error) {
     next(error);
   } finally {
-    await safeUnlink(req.file.path);
+    await cleanup();
   }
 });
 
