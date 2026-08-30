@@ -370,6 +370,16 @@ legend {
 }
 .stepper-value small { display: block; font-size: 9.5px; font-weight: 400; color: var(--paper-400); letter-spacing: 0.1em; }
 
+.field-hint {
+  margin-top: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: var(--paper-400);
+  text-wrap: pretty;
+}
+.field-hint b { color: var(--paper-200); font-weight: 500; }
+
 /* ── Acción principal ───────────────────────────────────────────────── */
 
 .run {
@@ -630,8 +640,11 @@ legend {
       </fieldset>
 
       <fieldset>
-        <legend>Densidad</legend>
-        <div class="stepper">
+        <legend><span title="Device Pixel Ratio: píxeles de imagen generados por cada píxel CSS de la diapositiva.">Densidad · DPR</span></legend>
+        <div
+          class="stepper"
+          title="DPR (Device Pixel Ratio): cuántos píxeles reales de imagen se generan por cada píxel CSS de la diapositiva. 1× = tamaño exacto. 2× = doble densidad, como una pantalla Retina — texto y bordes nítidos al hacer zoom o imprimir. 3–4× para impresión grande; cada paso ~cuadruplica el peso y el tiempo de conversión. No cambia el tamaño físico de la slide ni del PDF, solo su resolución."
+        >
           <button type="button" id="scaleDown" aria-label="Reducir densidad">−</button>
           <div class="stepper-value">
             <span id="scaleLabel">2×</span>
@@ -639,6 +652,9 @@ legend {
           </div>
           <button type="button" id="scaleUp" aria-label="Aumentar densidad">+</button>
         </div>
+        <p class="field-hint" id="scaleHint" aria-live="polite">
+          <b>2×</b> — doble densidad tipo Retina. Nítida al ampliar o imprimir, sin inflar el archivo. 1× = tamaño exacto; 3–4× solo para impresión grande.
+        </p>
       </fieldset>
     </div>
 
@@ -721,8 +737,15 @@ legend {
   const reconList = $("reconList");
   const sourceKindSel = $("sourceKind");
   const nativeSizeSel = $("nativeSize");
+  const scaleHint = $("scaleHint");
 
   const SCALES = [1, 2, 3, 4];
+  const SCALE_HINTS = {
+    1: "<b>1×</b> — la imagen sale al tamaño CSS exacto de la slide. Ligera, pero se pixela al ampliar o imprimir.",
+    2: "<b>2×</b> — doble densidad tipo Retina. Nítida al ampliar o imprimir, sin inflar el archivo. Recomendado.",
+    3: "<b>3×</b> — para impresión grande o recortar detalles. El archivo pesa ~2× más que en 2×.",
+    4: "<b>4×</b> — máxima resolución. Archivo pesado y conversión más lenta; solo si de verdad lo necesitas.",
+  };
   let scaleIndex = 1;
   let selectedFile = null;
   let activeXhr = null;
@@ -732,9 +755,11 @@ legend {
 
   // ── Densidad ──────────────────────────────────────────────────────
   function renderScale() {
-    scaleLabel.textContent = `${SCALES[scaleIndex]}×`;
+    const value = SCALES[scaleIndex];
+    scaleLabel.textContent = `${value}×`;
     scaleDown.disabled = scaleIndex === 0;
     scaleUp.disabled = scaleIndex === SCALES.length - 1;
+    scaleHint.innerHTML = SCALE_HINTS[value];
   }
   scaleDown.addEventListener("click", () => { if (scaleIndex > 0) { scaleIndex--; renderScale(); } });
   scaleUp.addEventListener("click", () => { if (scaleIndex < SCALES.length - 1) { scaleIndex++; renderScale(); } });
