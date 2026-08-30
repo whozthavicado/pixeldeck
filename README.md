@@ -238,6 +238,7 @@ node dist/server/index.js
 | `PIXELDECK_HEADED` | — | `1` lanza el navegador con ventana visible (depuración). |
 | `PIXELDECK_SLOWMO` | `250` | Con `PIXELDECK_HEADED=1`, ms de pausa entre acciones de Playwright. |
 | `PIXELDECK_ALLOW_REMOTE_URL` | — | `1` habilita la captura por URL en `/convert` (con guard anti-SSRF). Desactivada por defecto. |
+| `PIXELDECK_KEY` | — | Si se define, `/convert` exige esa clave en el header `X-PixelDeck-Key` (o `Authorization: Bearer`). Sin definir = sin autenticación. La UI pide la clave y la guarda en el navegador. |
 
 ## Despliegue con Docker
 

@@ -394,6 +394,34 @@ legend {
 .check input { margin-top: 2px; accent-color: var(--safelight); width: 15px; height: 15px; flex-shrink: 0; }
 .check:hover { color: var(--paper-000); }
 
+.keygate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+  padding-bottom: var(--sp-4);
+  border-bottom: var(--rule);
+}
+.keygate label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--paper-400);
+}
+.keygate input {
+  min-height: 44px;
+  padding: 0 var(--sp-3);
+  background: var(--ink-000);
+  border: var(--rule);
+  color: var(--paper-000);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+}
+.keygate input:focus-visible { outline: 2px solid var(--safelight); outline-offset: 2px; }
+.keygate.is-bad input { border-color: var(--stop); }
+
 /* ── Acción principal ───────────────────────────────────────────────── */
 
 .run {
@@ -572,6 +600,11 @@ legend {
   </p>
 
   <div class="panel">
+    <div class="keygate" id="keyGate" hidden>
+      <label for="apiKey">Clave de acceso</label>
+      <input type="password" id="apiKey" autocomplete="off" spellcheck="false" placeholder="X-PixelDeck-Key" />
+    </div>
+
     <button type="button" class="intake" id="dropzone" aria-describedby="intakeNote">
       <span class="corner corner-tl" aria-hidden="true"></span>
       <span class="corner corner-tr" aria-hidden="true"></span>
@@ -741,6 +774,19 @@ legend {
   "use strict";
 
   const $ = (id) => document.getElementById(id);
+
+  // ── Clave de acceso ───────────────────────────────────────────────
+  const keyGate = $("keyGate");
+  const apiKeyInput = $("apiKey");
+  const KEY_STORE = "pixeldeck.key";
+  try { apiKeyInput.value = localStorage.getItem(KEY_STORE) || ""; } catch (e) {}
+  apiKeyInput.addEventListener("input", () => {
+    keyGate.classList.remove("is-bad");
+    try { localStorage.setItem(KEY_STORE, apiKeyInput.value); } catch (e) {}
+  });
+  fetch("/config").then((r) => r.json()).then((c) => {
+    if (c && c.authRequired) keyGate.hidden = false;
+  }).catch(() => {});
 
   const dropzone = $("dropzone");
   const fileInput = $("fileInput");
@@ -1009,6 +1055,9 @@ legend {
     activeXhr = xhr;
     xhr.open("POST", "/convert");
     xhr.responseType = "blob";
+    if (!keyGate.hidden && apiKeyInput.value.trim()) {
+      xhr.setRequestHeader("X-PixelDeck-Key", apiKeyInput.value.trim());
+    }
 
     convertBtn.disabled = true;
     convertBtn.textContent = "Revelando…";
@@ -1050,6 +1099,11 @@ legend {
         a.click();
         a.remove();
       } else {
+        if (xhr.status === 401) {
+          keyGate.hidden = false;
+          keyGate.classList.add("is-bad");
+          apiKeyInput.focus();
+        }
         showError(`Fallo ${xhr.status}`, await readErrorBlob(xhr.response));
       }
       resetRunUi();

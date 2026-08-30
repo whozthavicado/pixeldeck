@@ -25,6 +25,11 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+// La UI consulta esto al cargar para saber si debe pedir la clave de acceso.
+app.get("/config", (_req, res) => {
+  res.json({ authRequired: Boolean(process.env.PIXELDECK_KEY), remoteUrl: process.env.PIXELDECK_ALLOW_REMOTE_URL === "1" });
+});
+
 app.use(convertRouter);
 app.use(express.static(CLIENT_DIR));
 

@@ -6,6 +6,7 @@ import { dirname, extname, join } from "node:path";
 import { nanoid } from "nanoid";
 import { buildZip } from "../zip-builder.js";
 import { assertPublicUrl, remoteUrlCaptureEnabled, isBlockedRequestUrl, BlockedUrlError } from "../url-guard.js";
+import { requireApiKey } from "../auth.js";
 import {
   runConversionPipeline,
   type OutputFormat,
@@ -62,7 +63,9 @@ const upload = multer({
 
 export const convertRouter = Router();
 
-convertRouter.post("/convert", upload.single("file"), async (req: Request, res: Response, next: NextFunction) => {
+// La clave (si `PIXELDECK_KEY` está definida) se verifica ANTES de que multer
+// parsee el multipart — un cliente sin clave no debe poder subir nada.
+convertRouter.post("/convert", requireApiKey, upload.single("file"), async (req: Request, res: Response, next: NextFunction) => {
   const rawUrl = typeof req.body?.url === "string" ? req.body.url.trim() : "";
   const cleanup = async () => {
     if (req.file) await safeUnlink(req.file.path);
