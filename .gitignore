@@ -4,3 +4,10 @@ tmp/
 *.log
 .DS_Store
 tests/e2e/output/
+
+# Salidas de la CLI cuando se corre desde la raíz del repo sin -o
+/presentation.pdf
+/slides.zip
+/slide-*.png
+/slide-*.jpg
+/salida.*

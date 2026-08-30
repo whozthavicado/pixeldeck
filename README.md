@@ -1,6 +1,68 @@
 # PixelDeck
 
-Convierte presentaciones HTML/CSS (generadas por IA — Claude Design, ChatGPT Canvas, Gemini, v0, Reveal.js, etc.) en PDF, JPG o PNG **pixel-perfect**, sin pasar por el pipeline de impresión del navegador (`@media print`).
+[![CI](https://github.com/whozthavicado/pixeldeck/actions/workflows/ci.yml/badge.svg)](https://github.com/whozthavicado/pixeldeck/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/pixeldeck)](https://www.npmjs.com/package/pixeldeck)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Docker](https://img.shields.io/badge/ghcr.io-pixeldeck-2496ED?logo=docker&logoColor=white)](https://github.com/whozthavicado/pixeldeck/pkgs/container/pixeldeck)
+
+Convierte presentaciones HTML/CSS (generadas por IA — **Claude Design, ChatGPT Canvas, Gemini, v0, Reveal.js**, etc.) en PDF, JPG o PNG **pixel-perfect**, rasterizando cada slide en un navegador real en modo `screen` — sin pasar por el pipeline de impresión del navegador (`@media print`) que rompe gradientes, sombras y tipografías.
+
+Gratis y de código abierto (MIT). Úsalo como **CLI**, **librería**, **contenedor Docker**, **GitHub Action** o **servidor con UI**.
+
+```bash
+npx pixeldeck deck.zip --source-kind claude-design -o deck.pdf
+```
+
+## Instalar / usar
+
+| Vía | Comando |
+|---|---|
+| **npx** (sin instalar) | `npx pixeldeck deck.html` |
+| **Global** | `npm i -g pixeldeck` · luego `pixeldeck deck.zip` |
+| **Docker (servidor + UI)** | `docker run --rm -p 4000:4000 ghcr.io/whozthavicado/pixeldeck` → abre `http://localhost:4000` |
+| **GitHub Action** | ver [abajo](#github-action) |
+| **Desde el código** | `git clone` · `npm install` · `npm run dev` |
+
+### CLI
+
+```bash
+pixeldeck <entrada.html|entrada.zip> [opciones]
+
+  -o, --out <ruta>         archivo de salida (default: ./<nombre>.<pdf|zip|png>)
+  -f, --format <fmt>       pdf | png | jpg                         (default: pdf)
+  -s, --scale <1-4>        densidad / DPR                          (default: 2)
+  -r, --result <modo>      pdf-multipage | handout-2up |
+                           image-per-slide | single-image
+  -e, --entry <archivo>    qué HTML del .zip convertir
+      --source-kind <k>    claude-design | reveal | impress | google-slides | generic-slide-class
+      --content-shape <s>  deck | single-page | long-scroll
+      --native-size <t>    1920x1080 | 1280x720 | 1024x768 | a4-portrait
+      --engine <e>         chromium | firefox | webkit
+      --no-verify          desactiva la verificación pixel-diff
+      --json               resultado como JSON en stdout
+```
+
+```bash
+pixeldeck deck.zip --entry "Suiza - Avance.dc.html" -r handout-2up
+pixeldeck poster.html --content-shape single-page -f png
+pixeldeck deck.zip --json > result.json
+```
+
+### GitHub Action
+
+```yaml
+- uses: whozthavicado/pixeldeck@v1
+  with:
+    input: slides/deck.zip
+    output: dist/deck.pdf
+    source-kind: claude-design
+- uses: actions/upload-artifact@v4
+  with:
+    name: deck-pdf
+    path: dist/deck.pdf
+```
+
+Salidas: `output`, `slides`, `verified` (`"N/M"`).
 
 ## El problema
 
@@ -50,18 +112,20 @@ pixeldeck/
 ├── server/               # Express + TypeScript — API HTTP
 │   ├── routes/convert.ts     # POST /convert
 │   ├── conversion-pipeline.ts
+│   ├── entry-file-resolver.ts # Elige/valida el HTML del .zip (soporta multi-deck)
 │   ├── zip-extractor.ts      # Extracción segura (zip-slip, zip-bomb)
 │   ├── job-queue.ts          # Limitador de concurrencia
 │   ├── cleanup.ts            # Workspaces temporales + red de seguridad al salir
 │   └── logger.ts
+├── cli/pixeldeck.ts       # CLI (bin) sobre el mismo pipeline, sin servidor
 ├── client/               # Frontend mínimo (HTML/CSS/JS vanilla, sin build step)
 │   ├── inspect.js            # Inspección local del archivo → recomendación de controles
 │   └── zip-peek.js           # Lector del central directory de un .zip sin descomprimir
 ├── tests/
 │   ├── fixtures/           # HTML de ejemplo con estructuras distintas (unit tests)
-│   └── e2e/                # Decks reales que estresan cada falla del pipeline de impresión,
-│                            # con aserciones por píxel (gradientes, box-shadow, backdrop-filter...)
-└── docker/                # Imagen basada en mcr.microsoft.com/playwright
+│   └── e2e/                # Decks reales que estresan cada falla del pipeline de impresión
+├── Dockerfile            # Imagen basada en mcr.microsoft.com/playwright
+└── action.yml            # GitHub Action (composite)
 ```
 
 ## Cómo correrlo en desarrollo
@@ -112,7 +176,7 @@ paso a paso. Solo para desarrollo.
 
 ```bash
 npm test              # unitarios (rápidos, sin navegador real) — slide-detector, etc.
-npm run test:e2e      # end-to-end con Playwright real: 6 decks que reproducen cada
+npm run test:e2e      # end-to-end con Playwright real: decks que reproducen cada
                        # falla documentada del pipeline de impresión, con aserciones
                        # por píxel (no solo "no truena")
 ```
@@ -140,13 +204,15 @@ node dist/server/index.js
 
 ## Despliegue con Docker
 
-Playwright necesita dependencias de sistema pesadas (librerías nativas para Chromium/Firefox/WebKit) que no vienen en una imagen `node:*` estándar — el `Dockerfile` parte de la imagen oficial `mcr.microsoft.com/playwright`, que ya las trae.
+Playwright necesita dependencias de sistema pesadas (librerías nativas para Chromium/Firefox/WebKit) que no vienen en una imagen `node:*` estándar — el `Dockerfile` (en la raíz) parte de la imagen oficial `mcr.microsoft.com/playwright`, que ya las trae.
 
 ```bash
-docker build -f docker/Dockerfile -t pixeldeck .
-docker run -d -p 4000:4000 \
-  -e PIXELDECK_MAX_CONCURRENCY=2 \
-  --name pixeldeck pixeldeck
+# Imagen publicada (cada release):
+docker run --rm -p 4000:4000 ghcr.io/whozthavicado/pixeldeck
+
+# O construir localmente:
+docker build -t pixeldeck .
+docker run -d -p 4000:4000 -e PIXELDECK_MAX_CONCURRENCY=2 --name pixeldeck pixeldeck
 ```
 
 El contenedor corre como el usuario sin privilegios `pwuser` que ya provee la imagen base (un navegador headless renderizando HTML no confiable no necesita root).
@@ -165,3 +231,11 @@ Cada conversión lanza un navegador Playwright completo — es la operación má
 Como no hay estado compartido entre requests, **escalar horizontalmente es simplemente correr más réplicas del contenedor** detrás de un load balancer (Docker Swarm, Kubernetes, ECS, etc.) — la capacidad total crece linealmente: `réplicas × PIXELDECK_MAX_CONCURRENCY`. No hace falta una cola centralizada (Redis/BullMQ) para este modelo, precisamente porque cada réplica es independiente y no necesita coordinarse con las demás.
 
 Si en el futuro se necesitara *ordenamiento justo global* entre TODAS las réplicas (por ejemplo, garantizar FIFO estricto entre usuarios distintos golpeando distintas réplicas, o pausar el ingreso de trabajo nuevo cuando el clúster entero está saturado), ahí sí valdría la pena introducir una cola externa compartida — pero el límite en memoria por proceso es suficiente y más simple mientras cada réplica pueda rechazar con un 429/503 cuando está llena en vez de degradar silenciosamente.
+
+## Contribuir
+
+Los PRs son bienvenidos — sobre todo **nuevos detectores de framework** (una fila en `core-engine/strategies/known-framework-signature.ts` + `core-engine/forced-strategy.ts`, y un fixture). Corre `npm run lint && npm test && npm run test:e2e` antes de abrir el PR. Ver [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+
+## Licencia
+
+MIT — ver [`LICENSE`](./LICENSE). El motor, la CLI, la librería, la imagen Docker y la GitHub Action son gratis para siempre, para cualquier uso. Si te ahorra tiempo, considera [apoyar el proyecto](https://github.com/sponsors/whozthavicado).

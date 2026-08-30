@@ -1,21 +1,54 @@
 {
   "name": "pixeldeck",
-  "version": "0.1.0",
-  "description": "Renderiza presentaciones HTML/CSS en un navegador real (modo screen, no print) y las ensambla en PDF/JPG/PNG pixel-perfect.",
-  "private": true,
+  "version": "0.2.0",
+  "description": "Convierte presentaciones HTML/CSS (Claude Design, ChatGPT Canvas, v0, Reveal.js…) en PDF/PNG/JPG pixel-perfect, rasterizando cada slide en un navegador real en modo screen — sin la ruta de impresión que rompe gradientes, sombras y tipografías.",
   "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/whozthavicado/pixeldeck#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/whozthavicado/pixeldeck.git"
+  },
+  "bugs": {
+    "url": "https://github.com/whozthavicado/pixeldeck/issues"
+  },
+  "keywords": [
+    "html-to-pdf",
+    "slides",
+    "presentation",
+    "deck",
+    "pdf",
+    "screenshot",
+    "playwright",
+    "pixel-perfect",
+    "claude-design",
+    "reveal.js",
+    "canvas",
+    "cli"
+  ],
   "engines": {
     "node": ">=20"
   },
+  "bin": {
+    "pixeldeck": "dist/cli/pixeldeck.js"
+  },
+  "main": "dist/core-engine/capture-engine.js",
+  "files": [
+    "dist/",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json && npm run copy-client",
     "copy-client": "node -e \"require('fs').cpSync('client','dist/client',{recursive:true})\"",
     "dev": "tsx watch server/index.ts",
     "start": "node dist/server/index.js",
+    "cli": "tsx cli/pixeldeck.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "lint": "eslint . --ext .ts"
+    "lint": "eslint . --ext .ts",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "adm-zip": "^0.6.0",

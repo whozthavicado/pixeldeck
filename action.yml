@@ -1,0 +1,116 @@
+name: PixelDeck
+description: Convierte un deck HTML/CSS (.html o .zip) a PDF/PNG/JPG pixel-perfect en tu pipeline.
+author: PixelDeck contributors
+branding:
+  icon: image
+  color: orange
+
+inputs:
+  input:
+    description: Ruta al archivo de entrada (.html, .htm o .zip).
+    required: true
+  output:
+    description: Ruta del archivo de salida. Default = ./<nombre>.<pdf|zip|png>.
+    required: false
+    default: ""
+  format:
+    description: "Formato de imagen: pdf | png | jpg."
+    required: false
+    default: pdf
+  scale:
+    description: Densidad / DPR (1-4).
+    required: false
+    default: "2"
+  result:
+    description: "pdf-multipage | handout-2up | image-per-slide | single-image."
+    required: false
+    default: ""
+  entry:
+    description: Qué HTML del .zip convertir (ruta relativa dentro del paquete).
+    required: false
+    default: ""
+  source-kind:
+    description: "claude-design | reveal | impress | google-slides | generic-slide-class."
+    required: false
+    default: ""
+  content-shape:
+    description: "deck | single-page | long-scroll."
+    required: false
+    default: ""
+  native-size:
+    description: "1920x1080 | 1280x720 | 1024x768 | a4-portrait."
+    required: false
+    default: ""
+  engine:
+    description: "chromium | firefox | webkit."
+    required: false
+    default: chromium
+  verify:
+    description: Verificación pixel-diff de cada slide ("true" | "false").
+    required: false
+    default: "true"
+  version:
+    description: Versión de pixeldeck en npm a usar.
+    required: false
+    default: latest
+
+outputs:
+  output:
+    description: Ruta del archivo generado.
+    value: ${{ steps.run.outputs.output }}
+  slides:
+    description: Número de slides convertidas.
+    value: ${{ steps.run.outputs.slides }}
+  verified:
+    description: Slides verificadas, como "N/M".
+    value: ${{ steps.run.outputs.verified }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Instalar pixeldeck + Chromium
+      shell: bash
+      env:
+        PD_VERSION: ${{ inputs.version }}
+      run: |
+        npm install -g "pixeldeck@${PD_VERSION}"
+        npx --yes playwright install --with-deps chromium
+
+    - name: Convertir
+      id: run
+      shell: bash
+      env:
+        PD_INPUT: ${{ inputs.input }}
+        PD_OUTPUT: ${{ inputs.output }}
+        PD_FORMAT: ${{ inputs.format }}
+        PD_SCALE: ${{ inputs.scale }}
+        PD_RESULT: ${{ inputs.result }}
+        PD_ENTRY: ${{ inputs.entry }}
+        PD_SOURCE_KIND: ${{ inputs.source-kind }}
+        PD_CONTENT_SHAPE: ${{ inputs.content-shape }}
+        PD_NATIVE_SIZE: ${{ inputs.native-size }}
+        PD_ENGINE: ${{ inputs.engine }}
+        PD_VERIFY: ${{ inputs.verify }}
+      run: |
+        set -euo pipefail
+        args=("$PD_INPUT" --json -f "$PD_FORMAT" -s "$PD_SCALE" --engine "$PD_ENGINE")
+        if [ -n "$PD_OUTPUT" ];        then args+=(-o "$PD_OUTPUT"); fi
+        if [ -n "$PD_RESULT" ];        then args+=(-r "$PD_RESULT"); fi
+        if [ -n "$PD_ENTRY" ];         then args+=(-e "$PD_ENTRY"); fi
+        if [ -n "$PD_SOURCE_KIND" ];   then args+=(--source-kind "$PD_SOURCE_KIND"); fi
+        if [ -n "$PD_CONTENT_SHAPE" ]; then args+=(--content-shape "$PD_CONTENT_SHAPE"); fi
+        if [ -n "$PD_NATIVE_SIZE" ];   then args+=(--native-size "$PD_NATIVE_SIZE"); fi
+        if [ "$PD_VERIFY" = "false" ]; then args+=(--no-verify); fi
+
+        json=$(pixeldeck "${args[@]}")
+        echo "$json"
+        node -e '
+          const r = JSON.parse(require("fs").readFileSync(0, "utf8"));
+          const out = process.env.GITHUB_OUTPUT;
+          require("fs").appendFileSync(out, `output=${r.output}\nslides=${r.slideCount}\nverified=${r.verified}\n`);
+        ' <<< "$json"

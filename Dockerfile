@@ -16,6 +16,7 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY core-engine ./core-engine
 COPY server ./server
+COPY cli ./cli
 COPY client ./client
 RUN npm run build
 

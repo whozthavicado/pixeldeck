@@ -14,6 +14,6 @@
     "declaration": false,
     "sourceMap": true
   },
-  "include": ["core-engine/**/*.ts", "server/**/*.ts"],
+  "include": ["core-engine/**/*.ts", "server/**/*.ts", "cli/**/*.ts"],
   "exclude": ["node_modules", "dist", "client", "tests"]
 }

@@ -4,6 +4,8 @@ tmp
 *.log
 .git
 .gitignore
+.github
 tests
-docker
+docs
+brand
 README.md
