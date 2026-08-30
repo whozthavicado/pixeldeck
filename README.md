@@ -38,9 +38,12 @@ PixelDeck no es un clon de ninguna herramienta existente que resuelva este mismo
 pixeldeck/
 ├── core-engine/         # Lógica pura, testeable sin servidor
 │   ├── slide-detector.ts     # Sistema de scoring de detección de slides
+│   ├── forced-strategy.ts    # Detección declarativa por hint del usuario (sourceKind / contentShape)
+│   ├── browser-pool.ts       # Navegadores Playwright reutilizables por proceso (+ modo headed)
 │   ├── stability-watcher.ts  # Espera por diff de screenshots consecutivos
-│   ├── capture-engine.ts     # Orquesta Playwright: navega, espera, captura
-│   ├── pdf-assembler.ts      # Ensambla imágenes → PDF con pdf-lib
+│   ├── image-diff.ts         # Fracción de píxeles distintos entre dos PNG (pixelmatch)
+│   ├── capture-engine.ts     # Orquesta Playwright: navega, espera, captura, verifica
+│   ├── pdf-assembler.ts      # Ensambla imágenes → PDF con pdf-lib (one-per-page / handout-2up)
 │   ├── image-converter.ts    # PNG → JPEG (sharp)
 │   ├── link-mapper.ts        # Reconstruye anotaciones de hipervínculo
 │   └── bundle-detector.ts    # Empaqueta el detector para inyectarlo en la página (esbuild)
@@ -52,6 +55,8 @@ pixeldeck/
 │   ├── cleanup.ts            # Workspaces temporales + red de seguridad al salir
 │   └── logger.ts
 ├── client/               # Frontend mínimo (HTML/CSS/JS vanilla, sin build step)
+│   ├── inspect.js            # Inspección local del archivo → recomendación de controles
+│   └── zip-peek.js           # Lector del central directory de un .zip sin descomprimir
 ├── tests/
 │   ├── fixtures/           # HTML de ejemplo con estructuras distintas (unit tests)
 │   └── e2e/                # Decks reales que estresan cada falla del pipeline de impresión,
@@ -68,6 +73,39 @@ npm run dev        # levanta el servidor en modo desarrollo (tsx, recarga en cal
 ```
 
 Abre `http://localhost:4000`, sube un `.html` o un `.zip` (HTML + CSS/JS/imágenes/fuentes relativas) — por ejemplo exportado desde Claude Design (Share → More formats and apps → HTML) — elige formato y resolución, y convierte.
+
+### Flujo declarativo (más rápido y directo)
+
+Al soltar el archivo, PixelDeck lo **inspecciona localmente** (nada se sube en
+esa fase): del `.html` lee firmas de framework, tamaño de artboard declarado y
+conteo aproximado de slides; del `.zip` lee el inventario de archivos (sin
+descomprimir). Con eso muestra un panel de reconocimiento y **preselecciona** los
+controles. Puedes sobrescribir cualquiera:
+
+| Control | Para qué |
+|---|---|
+| **Origen** (`sourceKind`) | Declara la herramienta que generó el deck (Claude Design, Reveal.js, impress.js, Google Slides, genérico). Si se declara, el motor **omite el scoring de estrategias** y usa directamente los selectores de esa herramienta; si no matchean, cae a la detección automática. |
+| **Tamaño nativo** (`nativeSize`) | Fija el viewport (1920×1080, 1280×720, 1024×768, A4 vertical) y salta la auto-detección de dimensiones. |
+| **Forma** (`contentShape`) | `deck` (varias slides), `single-page` (poster/portada = 1 imagen), `long-scroll` (página larga, captura completa). |
+| **Resultado esperado** (`expectedResult`) | `pdf-multipage`, `handout-2up` (2 slides por página A4 apaisada), `image-per-slide`, `single-image`. |
+
+Todos son campos de formulario opcionales de `POST /convert`; ausentes o `auto` =
+comportamiento automático de siempre.
+
+### Verificación pixel a pixel
+
+Tras capturar cada slide, PixelDeck toma una **segunda captura idéntica** y la
+compara píxel a píxel con la entregada (`pixelmatch`). Si no coinciden, la slide
+no estaba realmente asentada: reintenta una vez tras un respiro y, si sigue sin
+cuadrar, entrega la mejor captura marcándola como *no verificada*. El resultado
+reporta `Verificadas: N/M` (header `X-PixelDeck-Verified`). Se desactiva con
+`PIXELDECK_VERIFY=0`.
+
+### Observar el navegador
+
+`PIXELDECK_HEADED=1 npm run dev` lanza Chromium con **ventana visible** y
+`slowMo` (`PIXELDECK_SLOWMO`, default 250 ms) para ver la detección y captura
+paso a paso. Solo para desarrollo.
 
 ### Tests
 
@@ -94,6 +132,10 @@ node dist/server/index.js
 | `PIXELDECK_MAX_CONCURRENCY` | `2` | Conversiones simultáneas por proceso/réplica (cada una lanza un navegador Playwright completo). |
 | `PIXELDECK_MAX_UPLOAD_BYTES` | `52428800` (50MB) | Tamaño máximo de archivo aceptado en `/convert`. |
 | `PIXELDECK_TIMEOUT_MS` | `90000` | Presupuesto máximo por conversión antes de cancelarla. Ver nota de rendimiento en Docker abajo. |
+| `PIXELDECK_VERIFY` | `1` | `0` desactiva la verificación pixel-diff de la captura final. |
+| `PIXELDECK_BROWSER_IDLE_MS` | `120000` | El pool mantiene vivo un navegador ocioso este tiempo antes de cerrarlo; el siguiente request lo relanza. `0` desactiva el pool (lanza y cierra por conversión). |
+| `PIXELDECK_HEADED` | — | `1` lanza el navegador con ventana visible (depuración). |
+| `PIXELDECK_SLOWMO` | `250` | Con `PIXELDECK_HEADED=1`, ms de pausa entre acciones de Playwright. |
 
 ## Despliegue con Docker
 

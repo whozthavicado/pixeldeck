@@ -11,11 +11,24 @@ export interface AssemblableSlide {
   links?: LinkAnnotation[];
 }
 
+export type PdfLayout = "one-per-page" | "handout-2up";
+
 export interface AssemblePdfOptions {
   /** Slides ya en el orden final de presentación. */
   slides: AssemblableSlide[];
   outputPath: string;
+  /**
+   * Disposición de página. `one-per-page` (default): una slide por página, a
+   * su tamaño exacto, con anotaciones de link. `handout-2up`: dos slides por
+   * página A4 apaisada, centradas y escaladas para caber — pensado para
+   * imprimir. En 2-up no se insertan anotaciones de link.
+   */
+  layout?: PdfLayout;
 }
+
+/** A4 apaisada en puntos PDF (72 pt/in). */
+const A4_LANDSCAPE = { width: 841.89, height: 595.28 };
+const HANDOUT_MARGIN = 28;
 
 export interface AssemblePdfResult {
   outputPath: string;
@@ -41,6 +54,18 @@ export async function assemblePdf(options: AssemblePdfOptions): Promise<Assemble
   }
 
   const pdfDoc = await PDFDocument.create();
+
+  if (options.layout === "handout-2up") {
+    await assembleHandout2Up(pdfDoc, options.slides);
+    const pdfBytes = await pdfDoc.save();
+    await writeFile(options.outputPath, pdfBytes);
+    return {
+      outputPath: options.outputPath,
+      pageCount: Math.ceil(options.slides.length / 2),
+      linkAnnotationCount: 0,
+    };
+  }
+
   let linkAnnotationCount = 0;
 
   for (const slide of options.slides) {
@@ -64,6 +89,36 @@ export async function assemblePdf(options: AssemblePdfOptions): Promise<Assemble
     pageCount: options.slides.length,
     linkAnnotationCount,
   };
+}
+
+/**
+ * Dos slides por página A4 apaisada: mitad superior y mitad inferior, cada
+ * una escalada para caber en su celda conservando proporción, y centrada.
+ */
+async function assembleHandout2Up(pdfDoc: PDFDocument, slides: AssemblableSlide[]): Promise<void> {
+  const cellWidth = A4_LANDSCAPE.width - HANDOUT_MARGIN * 2;
+  const cellHeight = (A4_LANDSCAPE.height - HANDOUT_MARGIN * 3) / 2;
+
+  for (let i = 0; i < slides.length; i += 2) {
+    const page = pdfDoc.addPage([A4_LANDSCAPE.width, A4_LANDSCAPE.height]);
+    const pair = slides.slice(i, i + 2);
+
+    for (let j = 0; j < pair.length; j++) {
+      const slide = pair[j];
+      const image = await embedImageAuto(pdfDoc, await readFile(slide.filePath), slide.filePath);
+
+      const fit = Math.min(cellWidth / slide.widthPx, cellHeight / slide.heightPx);
+      const drawWidth = slide.widthPx * fit;
+      const drawHeight = slide.heightPx * fit;
+
+      // j=0 → celda superior, j=1 → celda inferior. Origen PDF abajo-izquierda.
+      const cellBottom = j === 0 ? HANDOUT_MARGIN * 2 + cellHeight : HANDOUT_MARGIN;
+      const x = (A4_LANDSCAPE.width - drawWidth) / 2;
+      const y = cellBottom + (cellHeight - drawHeight) / 2;
+
+      page.drawImage(image, { x, y, width: drawWidth, height: drawHeight });
+    }
+  }
 }
 
 async function embedImageAuto(pdfDoc: PDFDocument, bytes: Buffer, filePath: string) {

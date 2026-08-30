@@ -6,14 +6,14 @@ import type { DetectionStrategy, StrategyResult } from "../types.js";
  * Se mantiene como tabla de datos (no if/else) para que agregar soporte a
  * una herramienta nueva sea una línea, no una rama de lógica nueva.
  */
-interface FrameworkSignature {
+export interface FrameworkSignature {
   name: string;
   selector: string;
   /** Confianza si el selector matchea 2+ elementos. */
   confidence: number;
 }
 
-const KNOWN_SIGNATURES: FrameworkSignature[] = [
+export const KNOWN_SIGNATURES: FrameworkSignature[] = [
   // Reveal.js: estructura muy estable y específica de esta librería.
   { name: "reveal.js", selector: ".reveal .slides > section", confidence: 0.97 },
   // Impress.js: cada "step" es una slide.

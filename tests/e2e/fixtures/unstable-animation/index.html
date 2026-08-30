@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<style>
+  body { margin: 0; }
+  .deck > section { display: block; width: 800px; height: 400px; }
+  /* Animación infinita rápida y de alto contraste: dos capturas sucesivas
+     casi nunca coincidirán → la verificación pixel-diff debe marcar la
+     slide como no verificada sin lanzar error. */
+  /* Rotación continua (linear, sin steps) de un elemento asimétrico grande:
+     cada frame difiere del anterior, así que dos capturas sucesivas nunca
+     coinciden y la verificación pixel-diff marca la slide como no verificada. */
+  .flicker {
+    width: 380px; height: 380px; margin: 10px;
+    background: conic-gradient(#000 0deg 90deg, #fff 90deg 180deg, #f00 180deg 270deg, #00f 270deg 360deg);
+    animation: spin 400ms linear infinite;
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+</style>
+</head>
+<body>
+  <div class="deck">
+    <section data-slide="0" style="background: #334"><div class="flicker"></div></section>
+    <section data-slide="1" style="background: #433"><h1>Estable</h1></section>
+  </div>
+</body>
+</html>

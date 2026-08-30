@@ -4,11 +4,28 @@ import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname } from "node:path";
 import { nanoid } from "nanoid";
-import { runConversionPipeline, type OutputFormat } from "../conversion-pipeline.js";
+import {
+  runConversionPipeline,
+  type OutputFormat,
+  type ExpectedResult,
+  type NativeSize,
+} from "../conversion-pipeline.js";
 import { ConcurrencyLimiter, QueueFullError } from "../job-queue.js";
 import { UnsafeZipError } from "../zip-extractor.js";
 import { logger } from "../logger.js";
 import { SlideDetectionError, InvalidSourceError, ConversionTimeoutError, TooManySlidesError } from "../../core-engine/errors.js";
+import { SOURCE_KINDS, type SourceKind } from "../../core-engine/forced-strategy.js";
+import type { ContentShape } from "../../core-engine/capture-engine.js";
+
+const CONTENT_SHAPES: ContentShape[] = ["deck", "single-page", "long-scroll"];
+const EXPECTED_RESULTS: ExpectedResult[] = ["pdf-multipage", "handout-2up", "image-per-slide", "single-image"];
+const NATIVE_SIZES: NativeSize[] = ["1920x1080", "1280x720", "1024x768", "a4-portrait"];
+
+/** Devuelve el valor si está en la lista permitida, `undefined` si es vacío/ausente, o `null` si es inválido. */
+function parseEnum<T extends string>(value: unknown, allowed: readonly T[]): T | null | undefined {
+  if (value === undefined || value === null || value === "" || value === "auto") return undefined;
+  return allowed.includes(value as T) ? (value as T) : null;
+}
 
 const MAX_UPLOAD_BYTES = Number(process.env.PIXELDECK_MAX_UPLOAD_BYTES ?? 50 * 1024 * 1024); // 50MB
 const ALLOWED_EXTENSIONS = new Set([".html", ".htm", ".zip"]);
@@ -57,6 +74,24 @@ convertRouter.post("/convert", upload.single("file"), async (req: Request, res: 
     return;
   }
 
+  const sourceKind = parseEnum<SourceKind>(req.body?.sourceKind, SOURCE_KINDS);
+  const contentShape = parseEnum<ContentShape>(req.body?.contentShape, CONTENT_SHAPES);
+  const nativeSize = parseEnum<NativeSize>(req.body?.nativeSize, NATIVE_SIZES);
+  const expectedResult = parseEnum<ExpectedResult>(req.body?.expectedResult, EXPECTED_RESULTS);
+
+  for (const [name, value, allowed] of [
+    ["sourceKind", sourceKind, SOURCE_KINDS],
+    ["contentShape", contentShape, CONTENT_SHAPES],
+    ["nativeSize", nativeSize, NATIVE_SIZES],
+    ["expectedResult", expectedResult, EXPECTED_RESULTS],
+  ] as const) {
+    if (value === null) {
+      await safeUnlink(req.file.path);
+      res.status(400).json({ error: `Parámetro "${name}" inválido. Valores aceptados: ${allowed.join(", ")}, auto.` });
+      return;
+    }
+  }
+
   const requestStart = Date.now();
   logger.info("Solicitud de conversión recibida", {
     originalFileName: req.file.originalname,
@@ -74,12 +109,17 @@ convertRouter.post("/convert", upload.single("file"), async (req: Request, res: 
         originalFileName: req.file!.originalname,
         format,
         scale: scale ?? undefined,
+        sourceKind: sourceKind ?? undefined,
+        contentShape: contentShape ?? undefined,
+        nativeSize: nativeSize ?? undefined,
+        expectedResult: expectedResult ?? undefined,
       })
     );
 
     res.setHeader("X-PixelDeck-Slide-Count", String(outcome.slideCount));
     res.setHeader("X-PixelDeck-Detection-Strategy", outcome.detectionStrategy ?? "none");
     res.setHeader("X-PixelDeck-Detection-Confidence", outcome.detectionConfidence.toFixed(2));
+    res.setHeader("X-PixelDeck-Verified", `${outcome.verifiedCount}/${outcome.slideCount}`);
 
     res.download(outcome.resultFilePath, outcome.resultFileName, async (downloadError) => {
       // res.download ya envió (o intentó enviar) la respuesta — recién ahora

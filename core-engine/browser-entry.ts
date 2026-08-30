@@ -1,9 +1,9 @@
 /**
  * Punto de entrada que se empaqueta (con esbuild, ver `bundle-detector.ts`)
  * en un único script IIFE y se inyecta en la página real vía
- * `page.addScriptTag`. Expone `window.__pixeldeck.detectSlides()`.
+ * `page.addScriptTag`. Expone `window.__pixeldeck`.
  *
- * Existe porque `detectSlides` trabaja con referencias a `Element` del DOM,
+ * Existe porque la detección trabaja con referencias a `Element` del DOM,
  * que no son serializables a través del puente `page.evaluate` de
  * Playwright (structured clone no soporta nodos DOM anidados dentro de un
  * objeto). Este wrapper corre íntegramente DENTRO de la página y devuelve
@@ -12,6 +12,7 @@
  */
 import { detectSlides } from "./slide-detector.js";
 import { detectDeckDimensions, measureEffectiveScale } from "./deck-dimensions.js";
+import { detectSlidesForced, detectSingleRoot, type SourceKind } from "./forced-strategy.js";
 import type { SerializableDetectionReport } from "./types.js";
 
 function detectSlidesForBrowser(): SerializableDetectionReport {
@@ -30,14 +31,30 @@ function detectSlidesForBrowser(): SerializableDetectionReport {
   };
 }
 
+function detectSlidesForcedForBrowser(kind: SourceKind): SerializableDetectionReport {
+  return detectSlidesForced(document, kind);
+}
+
+function detectSingleRootForBrowser(): SerializableDetectionReport {
+  return detectSingleRoot(document);
+}
+
 declare global {
   interface Window {
     __pixeldeck: {
       detectSlides: typeof detectSlidesForBrowser;
+      detectSlidesForced: typeof detectSlidesForcedForBrowser;
+      detectSingleRoot: typeof detectSingleRootForBrowser;
       detectDeckDimensions: typeof detectDeckDimensions;
       measureEffectiveScale: typeof measureEffectiveScale;
     };
   }
 }
 
-window.__pixeldeck = { detectSlides: detectSlidesForBrowser, detectDeckDimensions, measureEffectiveScale };
+window.__pixeldeck = {
+  detectSlides: detectSlidesForBrowser,
+  detectSlidesForced: detectSlidesForcedForBrowser,
+  detectSingleRoot: detectSingleRootForBrowser,
+  detectDeckDimensions,
+  measureEffectiveScale,
+};

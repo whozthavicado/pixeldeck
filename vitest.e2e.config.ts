@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/e2e/**/*.e2e.test.ts"],
+    setupFiles: ["tests/e2e/setup.ts"],
     testTimeout: 60_000,
     // Los navegadores Playwright son pesados en CPU/RAM — no correr los
     // archivos de test en paralelo evita competir por recursos y timeouts

@@ -1,7 +1,8 @@
 import { copyFile } from "node:fs/promises";
 import { extname, join } from "node:path";
-import { captureDeck, type BrowserEngine, type CapturedSlide } from "../core-engine/capture-engine.js";
+import { captureDeck, type BrowserEngine, type CapturedSlide, type ContentShape } from "../core-engine/capture-engine.js";
 import { assemblePdf } from "../core-engine/pdf-assembler.js";
+import type { SourceKind } from "../core-engine/forced-strategy.js";
 import { convertPngToJpeg } from "../core-engine/image-converter.js";
 import { InvalidSourceError } from "../core-engine/errors.js";
 import { createConversionWorkspace } from "./cleanup.js";
@@ -19,8 +20,23 @@ import { logger } from "./logger.js";
 // (un deck de 3 y uno de 200 no pueden compartir un límite fijo). La env var
 // sigue disponible para imponer un tope duro en despliegues concretos.
 const TIMEOUT_MS = process.env.PIXELDECK_TIMEOUT_MS ? Number(process.env.PIXELDECK_TIMEOUT_MS) : undefined;
+/** `PIXELDECK_VERIFY=0` desactiva la verificación pixel-diff a nivel servidor. */
+const VERIFY_ENABLED = process.env.PIXELDECK_VERIFY !== "0" && process.env.PIXELDECK_VERIFY !== "false";
 
 export type OutputFormat = "pdf" | "png" | "jpg";
+
+/** Qué espera el usuario como resultado — dirige el ensamblado. */
+export type ExpectedResult = "pdf-multipage" | "handout-2up" | "image-per-slide" | "single-image";
+
+/** Tamaño nativo declarado por el usuario, o "auto" para detectarlo. */
+export type NativeSize = "1920x1080" | "1280x720" | "1024x768" | "a4-portrait";
+
+const NATIVE_SIZES: Record<NativeSize, { width: number; height: number }> = {
+  "1920x1080": { width: 1920, height: 1080 },
+  "1280x720": { width: 1280, height: 720 },
+  "1024x768": { width: 1024, height: 768 },
+  "a4-portrait": { width: 794, height: 1123 },
+};
 
 export interface ConversionRequest {
   /** Ruta del archivo ya subido a disco (por multer). */
@@ -30,6 +46,14 @@ export interface ConversionRequest {
   format: OutputFormat;
   browserEngine?: BrowserEngine;
   scale?: number;
+  /** Hint: herramienta que generó el deck. */
+  sourceKind?: SourceKind;
+  /** Hint: forma del contenido. Default "deck". */
+  contentShape?: ContentShape;
+  /** Hint: tamaño nativo del artboard. Ausente = auto-detectar. */
+  nativeSize?: NativeSize;
+  /** Qué entregar. Ausente = derivado de `format`. */
+  expectedResult?: ExpectedResult;
 }
 
 export interface ConversionOutcome {
@@ -39,8 +63,17 @@ export interface ConversionOutcome {
   slideCount: number;
   detectionStrategy: string | null;
   detectionConfidence: number;
+  /** Slides que pasaron la verificación pixel-diff (de `slideCount`). */
+  verifiedCount: number;
   /** Debe llamarse SOLO después de que la respuesta HTTP terminó de enviarse. */
   cleanup: () => Promise<void>;
+}
+
+/** Deriva el resultado esperado del `format` cuando el usuario no lo declaró. */
+function resolveExpectedResult(request: ConversionRequest, slideCount: number): ExpectedResult {
+  if (request.expectedResult) return request.expectedResult;
+  if (request.format === "pdf") return "pdf-multipage";
+  return slideCount === 1 ? "single-image" : "image-per-slide";
 }
 
 /**
@@ -64,6 +97,8 @@ export async function runConversionPipeline(request: ConversionRequest): Promise
     const entryFile = await resolveEntryFile(workspace.sourceDir);
     logger.debug("Input listo", { workspace: workspace.root, entryFile });
 
+    const forcedViewport = request.nativeSize ? NATIVE_SIZES[request.nativeSize] : undefined;
+
     const captureResult = await captureDeck({
       sourceDir: workspace.sourceDir,
       entryFile,
@@ -71,71 +106,61 @@ export async function runConversionPipeline(request: ConversionRequest): Promise
       scale: request.scale,
       browserEngine: request.browserEngine,
       timeoutMs: TIMEOUT_MS,
+      sourceKind: request.sourceKind,
+      contentShape: request.contentShape,
+      viewport: forcedViewport,
+      autoDetectDimensions: forcedViewport ? false : undefined,
+      verify: { enabled: VERIFY_ENABLED },
     });
 
     const detectionStrategy = captureResult.detection.winningStrategy;
     const detectionConfidence = captureResult.detection.finalConfidence;
     const slideCount = captureResult.slides.length;
+    const verifiedCount = captureResult.verifiedCount;
+    const expectedResult = resolveExpectedResult(request, slideCount);
 
     logger.info("Detección y captura completas", {
       workspace: workspace.root,
       slideCount,
+      verifiedCount,
       detectionStrategy,
       detectionConfidence,
+      expectedResult,
       detectionMs: captureResult.timings.detectionMs,
       captureMs: captureResult.timings.captureMs,
     });
 
-    if (request.format === "pdf") {
+    const base = { slideCount, verifiedCount, detectionStrategy, detectionConfidence, cleanup: workspace.cleanup };
+
+    if (expectedResult === "pdf-multipage" || expectedResult === "handout-2up") {
       const pdfPath = join(workspace.outputDir, "presentation.pdf");
       await assemblePdf({
         slides: captureResult.slides.map((s) => ({ filePath: s.filePath, widthPx: s.widthPx, heightPx: s.heightPx, links: s.links })),
         outputPath: pdfPath,
+        layout: expectedResult === "handout-2up" ? "handout-2up" : "one-per-page",
       });
 
-      logger.info("Conversión terminada", { workspace: workspace.root, format: "pdf", totalMs: Date.now() - pipelineStart });
-      return {
-        resultFilePath: pdfPath,
-        resultFileName: "presentation.pdf",
-        mimeType: "application/pdf",
-        slideCount,
-        detectionStrategy,
-        detectionConfidence,
-        cleanup: workspace.cleanup,
-      };
+      logger.info("Conversión terminada", { workspace: workspace.root, expectedResult, totalMs: Date.now() - pipelineStart });
+      return { ...base, resultFilePath: pdfPath, resultFileName: "presentation.pdf", mimeType: "application/pdf" };
     }
 
-    // format === "png" | "jpg"
-    const imageSlides = await prepareImageSlides(captureResult.slides, request.format, workspace.outputDir);
-    const ext = request.format;
-    const mimeType = request.format === "jpg" ? "image/jpeg" : "image/png";
+    // Salida de imágenes. `format` decide PNG vs JPG; si el usuario pidió
+    // "pdf" como format pero un expectedResult de imagen, se cae a PNG.
+    const imageFormat: "png" | "jpg" = request.format === "jpg" ? "jpg" : "png";
+    const deliverSlides = expectedResult === "single-image" ? captureResult.slides.slice(0, 1) : captureResult.slides;
+    const imageSlides = await prepareImageSlides(deliverSlides, imageFormat, workspace.outputDir);
+    const mimeType = imageFormat === "jpg" ? "image/jpeg" : "image/png";
 
-    if (slideCount === 1) {
-      logger.info("Conversión terminada", { workspace: workspace.root, format: request.format, totalMs: Date.now() - pipelineStart });
-      return {
-        resultFilePath: imageSlides[0].path,
-        resultFileName: `slide-01.${ext}`,
-        mimeType,
-        slideCount,
-        detectionStrategy,
-        detectionConfidence,
-        cleanup: workspace.cleanup,
-      };
+    if (imageSlides.length === 1) {
+      logger.info("Conversión terminada", { workspace: workspace.root, expectedResult, totalMs: Date.now() - pipelineStart });
+      return { ...base, resultFilePath: imageSlides[0].path, resultFileName: `slide-01.${imageFormat}`, mimeType };
     }
 
     const zipPath = join(workspace.outputDir, "slides.zip");
     await buildZip(imageSlides, zipPath);
 
-    logger.info("Conversión terminada", { workspace: workspace.root, format: request.format, totalMs: Date.now() - pipelineStart });
-    return {
-      resultFilePath: zipPath,
-      resultFileName: "slides.zip",
-      mimeType: "application/zip",
-      slideCount,
-      detectionStrategy,
-      detectionConfidence,
-      cleanup: workspace.cleanup,
-    };
+    logger.info("Conversión terminada", { workspace: workspace.root, expectedResult, totalMs: Date.now() - pipelineStart });
+    return { ...base, resultFilePath: zipPath, resultFileName: "slides.zip", mimeType: "application/zip" };
   } catch (error) {
     logger.warn("Conversión fallida", {
       workspace: workspace.root,

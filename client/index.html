@@ -248,17 +248,65 @@ main { width: 100%; max-width: 660px; position: relative; z-index: 1; }
 .icon-btn:hover { color: var(--stop); border-color: var(--ink-300); }
 .icon-btn:focus-visible { outline: 2px solid var(--safelight); outline-offset: 2px; }
 
+/* ── Reconocimiento del archivo ─────────────────────────────────────── */
+
+.recon {
+  display: none;
+  margin-top: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--ink-100);
+  border-left: 2px solid var(--safelight-dim);
+}
+.recon.is-shown { display: block; }
+.recon-head {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--safelight);
+  margin-bottom: var(--sp-2);
+}
+.recon-list { margin: 0; padding: 0; list-style: none; }
+.recon-list li {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--paper-200);
+  padding-left: var(--sp-3);
+  position: relative;
+}
+.recon-list li::before { content: "·"; position: absolute; left: 0; color: var(--safelight-dim); }
+
 /* ── Controles ──────────────────────────────────────────────────────── */
 
 .controls {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr 1fr;
   gap: var(--sp-5);
   margin-top: var(--sp-5);
   padding-top: var(--sp-5);
   border-top: var(--rule);
 }
-@media (max-width: 560px) { .controls { grid-template-columns: 1fr; } }
+.controls fieldset.span-2 { grid-column: 1 / -1; }
+@media (max-width: 560px) { .controls { grid-template-columns: 1fr; } .controls fieldset.span-2 { grid-column: auto; } }
+
+.field-select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--sp-3);
+  background: var(--ink-000);
+  border: var(--rule);
+  color: var(--paper-000);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a827a' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--sp-3) center;
+}
+.field-select:focus-visible { outline: 2px solid var(--safelight); outline-offset: 2px; }
+.field-select option { background: var(--ink-050); }
 
 fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 
@@ -524,12 +572,59 @@ legend {
       </button>
     </div>
 
+    <div class="recon" id="reconArea">
+      <div class="recon-head">Reconocimiento — ajusta lo que no cuadre</div>
+      <ul class="recon-list" id="reconList"></ul>
+    </div>
+
     <div class="controls">
       <fieldset>
-        <legend>Salida</legend>
+        <legend><label for="sourceKind">Origen</label></legend>
+        <select class="field-select" id="sourceKind" name="sourceKind">
+          <option value="auto">Auto-detectar</option>
+          <option value="claude-design">Claude Design / Canvas</option>
+          <option value="reveal">Reveal.js</option>
+          <option value="impress">impress.js</option>
+          <option value="google-slides">Google Slides (HTML)</option>
+          <option value="generic-slide-class">Genérico (.slide)</option>
+        </select>
+      </fieldset>
+
+      <fieldset>
+        <legend><label for="nativeSize">Tamaño nativo</label></legend>
+        <select class="field-select" id="nativeSize" name="nativeSize">
+          <option value="auto">Auto-detectar</option>
+          <option value="1920x1080">16:9 · 1920×1080</option>
+          <option value="1280x720">16:9 · 1280×720</option>
+          <option value="1024x768">4:3 · 1024×768</option>
+          <option value="a4-portrait">A4 vertical · 794×1123</option>
+        </select>
+      </fieldset>
+
+      <fieldset class="span-2">
+        <legend>Forma del contenido</legend>
+        <div class="segmented" id="shapeRow">
+          <label><input type="radio" name="contentShape" value="auto" checked /><span>Auto</span></label>
+          <label><input type="radio" name="contentShape" value="deck" /><span>Deck</span></label>
+          <label><input type="radio" name="contentShape" value="single-page" /><span>Página</span></label>
+          <label><input type="radio" name="contentShape" value="long-scroll" /><span>Scroll</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="span-2">
+        <legend>Resultado esperado</legend>
+        <div class="segmented" id="resultRow">
+          <label><input type="radio" name="expectedResult" value="pdf-multipage" checked /><span>PDF</span></label>
+          <label><input type="radio" name="expectedResult" value="handout-2up" /><span>PDF 2-up</span></label>
+          <label><input type="radio" name="expectedResult" value="image-per-slide" /><span>Imágenes</span></label>
+          <label><input type="radio" name="expectedResult" value="single-image" /><span>1 imagen</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Formato de imagen</legend>
         <div class="segmented" id="formatRow">
-          <label><input type="radio" name="format" value="pdf" checked /><span>PDF</span></label>
-          <label><input type="radio" name="format" value="png" /><span>PNG</span></label>
+          <label><input type="radio" name="format" value="png" checked /><span>PNG</span></label>
           <label><input type="radio" name="format" value="jpg" /><span>JPG</span></label>
         </div>
       </fieldset>
@@ -592,6 +687,8 @@ legend {
   </footer>
 </main>
 
+<script src="zip-peek.js"></script>
+<script src="inspect.js"></script>
 <script>
 (() => {
   "use strict";
@@ -620,6 +717,10 @@ legend {
   const scaleLabel = $("scaleLabel");
   const scaleDown = $("scaleDown");
   const scaleUp = $("scaleUp");
+  const reconArea = $("reconArea");
+  const reconList = $("reconList");
+  const sourceKindSel = $("sourceKind");
+  const nativeSizeSel = $("nativeSize");
 
   const SCALES = [1, 2, 3, 4];
   let scaleIndex = 1;
@@ -646,10 +747,45 @@ legend {
     return `${(bytes / 1048576).toFixed(1)} MB`;
   }
 
+  function setRadio(name, value) {
+    const el = document.querySelector(`input[name="${name}"][value="${value}"]`);
+    if (el) el.checked = true;
+  }
+
+  function applyRecommendation(rec) {
+    if (!rec) return;
+    if (rec.sourceKind) sourceKindSel.value = rec.sourceKind;
+    if (rec.nativeSize) nativeSizeSel.value = rec.nativeSize;
+    if (rec.contentShape) setRadio("contentShape", rec.contentShape);
+    if (rec.scale && SCALES.includes(rec.scale)) { scaleIndex = SCALES.indexOf(rec.scale); renderScale(); }
+  }
+
+  function renderRecon(notes) {
+    reconList.innerHTML = "";
+    for (const note of notes) {
+      const li = document.createElement("li");
+      li.textContent = note;
+      reconList.appendChild(li);
+    }
+    reconArea.classList.toggle("is-shown", notes.length > 0);
+  }
+
+  async function inspectFile(file) {
+    renderRecon(["Inspeccionando…"]);
+    try {
+      const { recommendation, notes } = await window.pixeldeckInspect(file);
+      applyRecommendation(recommendation);
+      renderRecon(notes);
+    } catch {
+      renderRecon([]);
+    }
+  }
+
   function setFile(file) {
     selectedFile = file;
     if (!file) {
       fileInfo.classList.remove("is-shown");
+      reconArea.classList.remove("is-shown");
       convertBtn.disabled = true;
       return;
     }
@@ -658,6 +794,7 @@ legend {
     fileInfo.classList.add("is-shown");
     convertBtn.disabled = false;
     hideSlips();
+    void inspectFile(file);
   }
 
   dropzone.addEventListener("click", () => fileInput.click());
@@ -729,10 +866,12 @@ legend {
   }
 
   function showResult(xhr, name) {
+    const verified = xhr.getResponseHeader("X-PixelDeck-Verified") || "";
     const rows = [
       ["Diapositivas", xhr.getResponseHeader("X-PixelDeck-Slide-Count") || "?"],
       ["Detección", xhr.getResponseHeader("X-PixelDeck-Detection-Strategy") || "—"],
       ["Confianza", xhr.getResponseHeader("X-PixelDeck-Detection-Confidence") || "—"],
+      ["Verificadas", verified || "—"],
       ["Archivo", name],
     ];
     resultMeta.innerHTML = "";
@@ -741,6 +880,11 @@ legend {
       dt.textContent = key;
       const dd = document.createElement("dd");
       dd.textContent = value;
+      // Pinta "Verificadas: N/M" en color de aviso si N < M.
+      if (key === "Verificadas" && /^(\d+)\/(\d+)$/.test(value)) {
+        const [, n, m] = value.match(/^(\d+)\/(\d+)$/);
+        if (Number(n) < Number(m)) dd.style.color = "var(--safelight)";
+      }
       resultMeta.append(dt, dd);
     }
     resultArea.classList.add("is-shown");
@@ -764,11 +908,18 @@ legend {
 
     const format = document.querySelector('input[name="format"]:checked').value;
     const scale = String(SCALES[scaleIndex]);
+    const contentShape = document.querySelector('input[name="contentShape"]:checked').value;
+    const expectedResult = document.querySelector('input[name="expectedResult"]:checked').value;
 
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("format", format);
     formData.append("scale", scale);
+    formData.append("expectedResult", expectedResult);
+    // "auto" se envía tal cual; el servidor lo trata como ausente.
+    if (sourceKindSel.value !== "auto") formData.append("sourceKind", sourceKindSel.value);
+    if (nativeSizeSel.value !== "auto") formData.append("nativeSize", nativeSizeSel.value);
+    if (contentShape !== "auto") formData.append("contentShape", contentShape);
 
     const xhr = new XMLHttpRequest();
     activeXhr = xhr;
@@ -799,7 +950,7 @@ legend {
       if (xhr.status >= 200 && xhr.status < 300) {
         const disposition = xhr.getResponseHeader("Content-Disposition") || "";
         const match = /filename="([^"]+)"/.exec(disposition);
-        const name = match ? match[1] : `salida.${format === "pdf" ? "pdf" : "zip"}`;
+        const name = match ? match[1] : `salida.${expectedResult.startsWith("pdf") || expectedResult === "handout-2up" ? "pdf" : "zip"}`;
 
         if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
         lastObjectUrl = URL.createObjectURL(xhr.response);

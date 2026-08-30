@@ -1,5 +1,4 @@
-import { PNG } from "pngjs";
-import pixelmatch from "pixelmatch";
+import { diffRatio } from "./image-diff.js";
 
 export interface StabilityOptions {
   /** Presupuesto total de espera antes de rendirse y seguir adelante. */
@@ -58,8 +57,8 @@ export async function waitForVisualStability(
     const current = await captureSnapshot();
     attempts++;
 
-    const diffRatio = diffRatioBetween(previous, current, opts.pixelDiffThreshold);
-    consecutiveStable = diffRatio <= opts.stablePixelRatio ? consecutiveStable + 1 : 0;
+    const ratio = diffRatio(previous, current, opts.pixelDiffThreshold);
+    consecutiveStable = ratio <= opts.stablePixelRatio ? consecutiveStable + 1 : 0;
     previous = current;
 
     if (consecutiveStable >= opts.consecutiveStableRequired) {
@@ -68,32 +67,6 @@ export async function waitForVisualStability(
   }
 
   return { stable: false, finalSnapshot: previous, attempts, elapsedMs: Date.now() - start };
-}
-
-function diffRatioBetween(bufferA: Buffer, bufferB: Buffer, pixelDiffThreshold: number): number {
-  let pngA: PNG;
-  let pngB: PNG;
-  try {
-    pngA = PNG.sync.read(bufferA);
-    pngB = PNG.sync.read(bufferB);
-  } catch {
-    // Si alguna captura no es un PNG decodificable (raro, pero posible con
-    // un frame parcial), lo tratamos como "no estable" y seguimos intentando.
-    return 1;
-  }
-
-  if (pngA.width !== pngB.width || pngA.height !== pngB.height) {
-    // Un cambio de dimensiones entre capturas (ej. reflow por fuente
-    // cargando) es en sí evidencia de que el layout NO se ha asentado.
-    return 1;
-  }
-
-  const { width, height } = pngA;
-  const numDiffPixels = pixelmatch(pngA.data, pngB.data, null, width, height, {
-    threshold: pixelDiffThreshold,
-  });
-
-  return numDiffPixels / (width * height);
 }
 
 function delay(ms: number): Promise<void> {
