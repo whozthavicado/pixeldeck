@@ -36,6 +36,12 @@ export interface CaptureOptions {
   sourceDir?: string;
   /** URL pública a capturar directamente, en vez de servir `sourceDir`. */
   url?: string;
+  /**
+   * Si se pasa, cada petición de navegación del navegador (redirecciones
+   * incluidas) se comprueba con esta función y se aborta si devuelve `true`.
+   * El servidor la usa como segunda barrera anti-SSRF para la captura por URL.
+   */
+  blockRequestUrl?: (url: string) => boolean;
   /** Archivo de entrada dentro de sourceDir. Default: "index.html". Ignorado si se pasa `url`. */
   entryFile?: string;
   /** Carpeta donde escribir los PNG capturados, uno por slide. */
@@ -226,13 +232,30 @@ export async function captureDeck(options: CaptureOptions): Promise<CaptureResul
 
   const bundle = await getDetectorBundle();
 
+  const blockRequestUrl = options.blockRequestUrl;
+  const prepareContext = async (ctx: BrowserContext): Promise<void> => {
+    if (deterministic) await ctx.addInitScript(DETERMINISTIC_INIT);
+    if (blockRequestUrl) {
+      // Segunda barrera anti-SSRF: aborta cualquier navegación (incluidas
+      // redirecciones) hacia un host bloqueado. La primera barrera es la
+      // validación con DNS en el servidor antes de llamar aquí.
+      await ctx.route("**/*", (route, request) => {
+        if (request.isNavigationRequest() && blockRequestUrl(request.url())) {
+          void route.abort("blockedbyclient");
+        } else {
+          void route.continue();
+        }
+      });
+    }
+  };
+
   try {
     const contextOptions = deterministic
       ? { viewport, deviceScaleFactor: scale, reducedMotion: "reduce" as const }
       : { viewport, deviceScaleFactor: scale };
     let context = await browser.newContext(contextOptions);
     activeContext = context;
-    if (deterministic) await context.addInitScript(DETERMINISTIC_INIT);
+    await prepareContext(context);
     let page = await context.newPage();
 
     const loadPage = async (target: Page) => {
@@ -277,7 +300,7 @@ export async function captureDeck(options: CaptureOptions): Promise<CaptureResul
             : { viewport: effectiveViewport, deviceScaleFactor: appliedScale }
         );
         activeContext = context;
-        if (deterministic) await context.addInitScript(DETERMINISTIC_INIT);
+        await prepareContext(context);
         page = await context.newPage();
         await loadPage(page);
 

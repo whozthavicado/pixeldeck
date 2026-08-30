@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, extname, join } from "node:path";
 import { nanoid } from "nanoid";
 import { buildZip } from "../zip-builder.js";
+import { assertPublicUrl, remoteUrlCaptureEnabled, isBlockedRequestUrl, BlockedUrlError } from "../url-guard.js";
 import {
   runConversionPipeline,
   type OutputFormat,
@@ -71,10 +72,28 @@ convertRouter.post("/convert", upload.single("file"), async (req: Request, res: 
     res.status(400).json({ error: "Envía un archivo ('file' con un .html o .zip) o un campo 'url'." });
     return;
   }
-  if (rawUrl && !/^https?:\/\/[^\s]+$/i.test(rawUrl)) {
-    await cleanup();
-    res.status(400).json({ error: 'Parámetro "url" inválido. Debe ser http(s)://…' });
-    return;
+  if (rawUrl) {
+    if (!/^https?:\/\/[^\s]+$/i.test(rawUrl)) {
+      await cleanup();
+      res.status(400).json({ error: 'Parámetro "url" inválido. Debe ser http(s)://…' });
+      return;
+    }
+    // Captura por URL en el servidor: desactivada salvo opt-in explícito
+    // (SSRF — ver server/url-guard.ts). La CLI no pasa por aquí.
+    if (!remoteUrlCaptureEnabled()) {
+      await cleanup();
+      res.status(403).json({
+        error: "La captura por URL está desactivada en este servidor. Habilítala con PIXELDECK_ALLOW_REMOTE_URL=1, o sube el archivo.",
+      });
+      return;
+    }
+    try {
+      await assertPublicUrl(rawUrl);
+    } catch (err) {
+      await cleanup();
+      res.status(400).json({ error: err instanceof BlockedUrlError ? err.message : "URL no permitida." });
+      return;
+    }
   }
 
   const format = parseFormat(req.body?.format);
@@ -128,6 +147,7 @@ convertRouter.post("/convert", upload.single("file"), async (req: Request, res: 
         uploadedFilePath: req.file?.path,
         originalFileName: req.file?.originalname,
         url: rawUrl || undefined,
+        blockRequestUrl: rawUrl ? isBlockedRequestUrl : undefined,
         format,
         scale: scale ?? undefined,
         entryFile: str(req.body?.entryFile),

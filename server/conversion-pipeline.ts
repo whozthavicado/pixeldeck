@@ -45,6 +45,12 @@ export interface ConversionRequest {
   originalFileName?: string;
   /** URL pública a capturar en vez de un archivo subido. */
   url?: string;
+  /**
+   * Guard anti-SSRF: si se pasa, cada navegación del navegador se verifica
+   * con esta función y se aborta si devuelve `true`. Lo usa la ruta HTTP;
+   * la CLI (usuario local de confianza) lo deja sin definir.
+   */
+  blockRequestUrl?: (url: string) => boolean;
   format: OutputFormat;
   browserEngine?: BrowserEngine;
   scale?: number;
@@ -137,6 +143,7 @@ export async function runConversionPipeline(request: ConversionRequest): Promise
     const captureResult = await captureDeck({
       sourceDir: request.url ? undefined : workspace.sourceDir,
       url: request.url,
+      blockRequestUrl: request.blockRequestUrl,
       entryFile,
       outputDir: workspace.outputDir,
       scale: request.scale,

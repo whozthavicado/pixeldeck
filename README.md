@@ -181,7 +181,17 @@ comportamiento automático de siempre.
 
 ### Input por URL
 
-`pixeldeck https://…` o `-F "url=https://…"` en `/convert` captura una página publicada directamente, sin subir archivos.
+`pixeldeck https://…` captura una página publicada directamente, sin subir archivos.
+
+En el **servidor HTTP** esto es un vector de SSRF (un cliente podría apuntar el
+servidor a recursos internos), así que la captura por URL vía `/convert` está
+**desactivada por defecto**. Se habilita con `PIXELDECK_ALLOW_REMOTE_URL=1`, y aun
+así solo se permite http/https hacia **direcciones IP públicas**: se resuelve el
+host y se rechaza si cae en un rango privado/loopback/link-local/CGNAT o en el
+endpoint de metadatos de la nube (`169.254.169.254`), con una segunda barrera que
+aborta redirecciones hacia hosts bloqueados. La **CLI no tiene esta restricción**
+— quien la corre ya tiene acceso a su propia red (`pixeldeck http://localhost:3000`
+funciona).
 
 ### Verificación pixel a pixel
 
@@ -227,6 +237,7 @@ node dist/server/index.js
 | `PIXELDECK_BROWSER_IDLE_MS` | `120000` | El pool mantiene vivo un navegador ocioso este tiempo antes de cerrarlo; el siguiente request lo relanza. `0` desactiva el pool (lanza y cierra por conversión). |
 | `PIXELDECK_HEADED` | — | `1` lanza el navegador con ventana visible (depuración). |
 | `PIXELDECK_SLOWMO` | `250` | Con `PIXELDECK_HEADED=1`, ms de pausa entre acciones de Playwright. |
+| `PIXELDECK_ALLOW_REMOTE_URL` | — | `1` habilita la captura por URL en `/convert` (con guard anti-SSRF). Desactivada por defecto. |
 
 ## Despliegue con Docker
 
